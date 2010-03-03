@@ -30,13 +30,13 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define _BT_COEX_SHIM_H_
 
 /**
-    @file bt_coex_shim.h
+  @file bt_coex_shim.h
 
-    Bluetooth Coexistence Shim
+  Bluetooth Coexistence Shim
 
-    This file defines the services to start up or shut down the Bluetooth
-    Coexistence solution for Qualcomm's WLAN. The services should be called when
-    Bluetooth is initialized or shut down.
+  This file defines the services to start up or shut down the Bluetooth
+  Coexistence solution for Qualcomm's WLAN. The services should be called when
+  Bluetooth is initialized or shut down.
 */
 
 /*=============================================================================
@@ -49,7 +49,7 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
   when        who  what, where, why
   ----------  ---  -----------------------------------------------------------
-  2009-09-24  tam  Initial version.
+  2010-03-03   pj  Initial Open Source version
 
 =============================================================================*/
 
@@ -130,4 +130,3 @@ void bt_coex_shim_close( void );
 #endif
 
 #endif /* _BT_COEX_SHIM_H_ */
-

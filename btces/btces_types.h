@@ -34,11 +34,11 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ------------------------------------------------------------------------------*/
 
 /**
-   @file btces_types.h
-   
-   This file provides a mapping between platform-specific types and the BTC-ES
-   platform-independent types. It also supplies a few definitions common to BTC-ES
-   clients and to the hosting platform calling into BTC-ES.
+  @file btces_types.h
+
+  This file provides a mapping between platform-specific types and the BTC-ES
+  platform-independent types. It also supplies a few definitions common to BTC-ES
+  clients and to the hosting platform calling into BTC-ES.
 */
 
 /*=============================================================================
@@ -51,11 +51,7 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
   when        who  what, where, why
   ----------  ---  -----------------------------------------------------------
-  2009-05-15  tam  Removed BTCES_STATUS_STILL_INITIALIZED; De-Init does not need De-Register.
-  2009-04-24  tam  Added BTCES_STATUS_STILL_INITIALIZED.
-  2009-04-01  tam  Added BTCES_STATUS_ALREADY_INITIALIZED.
-  2009-03-31  tam  Moved common things here from btces.h .
-  2009-03-25  dgh  Initial version.
+  2010-03-03   pj  Initial Open Source version
 
 =============================================================================*/
 
@@ -154,3 +150,4 @@ typedef struct
 #endif
 
 #endif /*_BTCES_TYPES_H_*/
+

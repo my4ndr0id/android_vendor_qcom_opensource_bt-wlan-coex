@@ -27,12 +27,12 @@ OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
 IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 /**
-    @file btces_api.cpp
+  @file btces_api.cpp
 
-    Bluetooth Coexistence Events Source
+  Bluetooth Coexistence Events Source
 
-    This file implements the BTC-ES client (btces_*) and lower layer service
-    (btces_svc_*) interfaces.
+  This file implements the BTC-ES client (btces_*) and lower layer service
+  (btces_svc_*) interfaces.
 */
 
 /*=============================================================================
@@ -45,27 +45,7 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
   when        who  what, where, why
   ----------  ---  -----------------------------------------------------------
-  2010-01-15  tam  Add processing for Periodic Inquiry mode
-  2009-10-06  tam  BTC-ES Token should be captured if btces_init() shuts down PFAL
-  2009-09-16  tam  Wrong cast on void* input of btces_page_timeout_cb()
-  2009-07-31  tam  Added support for WLAN Channel input
-  2009-07-27  tam  Fixed value parsing in Sync Connection Complete and Changed events
-  2009-07-02  tam  Allow debug print PFAL functions to be macros again
-  2009-07-01  tam  include shuffle: Moved AEE* out of platform-independent files, etc.
-  2009-06-30  tam  For outgoing event structs, enums changed to 8-bit values
-  2009-06-29  tam  Added processing for HCI_Add_SCO_Connection
-  2009-06-18  tam  Increased # of output bytes of HCI commands for debugging
-  2009-06-10  tam  Added ability for BTC-ES to cancel a running timer
-  2009-06-01  dgh  Added stub btces_wlan_info().
-  2009-05-19  tam  Added some more low priority debug output
-  2009-05-15  tam  De-Init won't require a de-register.
-  2009-04-24  tam  Updates after code review and unit test
-  2009-04-21  tam  Misc fixes (Mode, nested page handling)
-  2009-04-20  tam  Misc bugs and whitespace fixes (2x)
-  2009-04-17  tam  Fix pointer-to-function error (3x)
-  2009-04-13  tam  Misc fixes (3x).
-  2009-04-07  tam  First coded version.
-  2009-03-31  dgh  Initial version.
+  2010-03-03   pj  Initial Open Source version
 
 =============================================================================*/
 
@@ -77,7 +57,6 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "btces.h"
 #include "btces_svc.h"
 #include "btces_pfal.h"
-
 
 /*----------------------------------------------------------------------------
  * Preprocessor Definitions and Constants
@@ -175,7 +154,7 @@ do                                  \
 #define HCI_CMD_RESET               (0x0C03)
 
 /** HCI_Setup_Synchronous_Connection: Connection_Handle, [...] */
-#define HCI_CMD_SETUP_SYNC_CONN     (0x0428) 
+#define HCI_CMD_SETUP_SYNC_CONN     (0x0428)
 #define HCI_CMD_SETUP_SYNC_CONN_LEN              (2)
 #define HCI_CMD_SETUP_SYNC_CONN_HANDLE_OFST   (3+(0))
 
@@ -1093,7 +1072,7 @@ static void btces_make_state_report( void )
               {
                 break;
               }
-           
+
             } /* switch ( conn_ptr->sco_state ) */
 
             break;
@@ -1911,7 +1890,7 @@ BTCES_STATUS btces_state_report( void )
     {
       ret_val = BTCES_STATUS_NOT_REGISTERED;
     }
-    
+
     btces_pfal_release_token();
   }
 
@@ -3156,8 +3135,9 @@ void btces_svc_hci_event_in
     }
 
     btces_pfal_release_token();
-    
+
   } /* ret_val == BTCES_OK: Is BTC-ES running ?*/
 } /* End of btces_svc_hci_event_in() */
 
 /* End of btces.c */
+

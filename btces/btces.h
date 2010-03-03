@@ -34,12 +34,12 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ------------------------------------------------------------------------------*/
 
 /**
-   @file btces.h
-   
-   This file provides the public interface for the Qualcomm Bluetooth Coexistence 
-   Event Source.  This module plugs into the HCI transport layer and provides
-   event synthesis and aggregation for Bluetooth events that relate to WiFi
-   coexistence.
+  @file btces.h
+
+  This file provides the public interface for the Qualcomm Bluetooth Coexistence
+  Event Source.  This module plugs into the HCI transport layer and provides
+  event synthesis and aggregation for Bluetooth events that relate to WiFi
+  coexistence.
 */
 
 /*=============================================================================
@@ -52,24 +52,17 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
   when        who  what, where, why
   ----------  ---  -----------------------------------------------------------
-  2009-07-31  tam  Updated name for WLAN Channel API
-  2009-06-30  tam  For outgoing event structs, remove enums & avoid structure padding
-  2009-05-22  tam  Updated point-to-function typdef for btces_deregister().
-  2009-05-15  tam  De-Init won't require a de-register.
-  2009-04-24  tam  Make De-registration work like OpenBlue
-  2009-04-17  tam  Fixed btces_cb_type typdef (2x)
-  2009-03-31  tam  Moved common things to btces_type.h, added more doxygen comments.
-  2009-03-25  dgh  Initial version.
+  2010-03-03   pj  Initial Open Source version
 
 =============================================================================*/
 
 /**
      @mainpage BTC-ES: Bluetooth Coexistence-Events Source
-               
+
      BTC-ES exposes a set of APIs allowing a client to subscribe to a stream of
      events announcing Bluetooth activity that is important for proper coexistence
      with WiFi.
-     
+
 */
 
 /*----------------------------------------------------------------------------
@@ -259,19 +252,19 @@ FUNCTION:  btces_init
 /**
   Initialize the BTC-ES module.
 
-  This service is called to initialize BTC-ES. BTC-ES will initialize the platform 
-  layer, find out the initial power state of Bluetooth, begin doing HCI Traffic 
-  Analysis and processing platform events. No outgoing events from BTC-ES can be 
-  reported until a client has registered by calling btces_register(); BTC-ES starts 
+  This service is called to initialize BTC-ES. BTC-ES will initialize the platform
+  layer, find out the initial power state of Bluetooth, begin doing HCI Traffic
+  Analysis and processing platform events. No outgoing events from BTC-ES can be
+  reported until a client has registered by calling btces_register(); BTC-ES starts
   up with no client registered.
-  
-  If BTC-ES is already running, BTCES_STATUS_ALREADY_INITIALIZED is returned; 
-  btces_deinit() must be called first if the intent is to re-initialize BTC-ES. 
-  If BTC-ES initialization fails for any other reason, BTC-ES will remain 
-  uninitialized.    
-  
+
+  If BTC-ES is already running, BTCES_STATUS_ALREADY_INITIALIZED is returned;
+  btces_deinit() must be called first if the intent is to re-initialize BTC-ES.
+  If BTC-ES initialization fails for any other reason, BTC-ES will remain
+  uninitialized.
+
   @see     btces_deinit
-  
+
   @return  BTCES_OK: BTC-ES initialized successfully.
   @return  BTCES_STATUS_ALREADY_INITIALIZED: BTC-ES is already running; no change occurred.
 */
@@ -284,11 +277,11 @@ FUNCTION:  btces_deinit
   BTC-ES is told to un-initialize, and all HCI and Native event analysis is stopped.
   It does not matter if a client is still registered to receive BTC-ES output events.
 
-  BTC-ES is uninitialized; all dynamically allocated resources are 
-  freed and all event reporting is halted.    
-  
+  BTC-ES is uninitialized; all dynamically allocated resources are
+  freed and all event reporting is halted.
+
   @see     btces_init
-  
+
   @return  BTCES_OK: BTC-ES uninitialized successfully.
   @return  BTCES_STATUS_NOT_INITIALIZED: BTC-ES is not running; btces_init() must be called first.
 */
@@ -303,14 +296,14 @@ FUNCTION:  btces_register
 
   This service registers a callback to be used by BTC-ES to report events, and
   triggers a sequence of events to occur representing the current Bluetooth state.
-  
-  When BTC-ES reports an event, it calls the service pointed to by event_cb_ptr, 
-  supplying a pointer to an event structure containing the event and the associated 
-  data, and the original value of user_data. The receiver of this event must copy 
+
+  When BTC-ES reports an event, it calls the service pointed to by event_cb_ptr,
+  supplying a pointer to an event structure containing the event and the associated
+  data, and the original value of user_data. The receiver of this event must copy
   the data before returning.
-  
+
   @see     btces_deregister
-  
+
   @return  BTCES_OK: The registration occurred successfully.
   @return  BTCES_STATUS_INVALID_PARAMETERS: event_cb_ptr was NULL.
   @return  BTCES_STATUS_ALREADY_REGISTERED: BTC-ES already has a registered event callback.
@@ -319,11 +312,11 @@ FUNCTION:  btces_register
 BTCES_STATUS btces_register
 (
   btces_cb_type *event_cb_ptr,
-  /**< [in] Pointer to a service to be called by BTC-ES to report an event. 
+  /**< [in] Pointer to a service to be called by BTC-ES to report an event.
             The pointer cannot be NULL. */
-  
+
   void *user_data
-  /** [in] Opaque user-supplied data. This same value will always be passed to the 
+  /** [in] Opaque user-supplied data. This same value will always be passed to the
            callback service indicated by event_cb_ptr. */
 );
 
@@ -333,11 +326,11 @@ FUNCTION:  btces_deregister
 /**
   BTC-ES is told to stop reporting events.
 
-  This service de-registers the callback that was given to btces_register(), 
-  and so BTC-ES will stop reporting events until that service is called again.  
-  
+  This service de-registers the callback that was given to btces_register(),
+  and so BTC-ES will stop reporting events until that service is called again.
+
   @see     btces_register
-  
+
   @return  BTCES_OK: The callback deregistration occurred successfully.
   @return  BTCES_STATUS_NOT_REGISTERED: BTC-ES does not have a registered event callback.
   @return  BTCES_STATUS_NOT_INITIALIZED: BTC-ES is not running; btces_init() must be called first.
@@ -359,7 +352,7 @@ FUNCTION:  btces_state_report
   This service causes BTC-ES to insert a series of events into the outgoing event
   stream. The event for the current Bluetooth power will occur first, and if Bluetooth
   is ON, then several more events can be generated.
-  
+
   @return  BTCES_OK: The series of events was scheduled successfully.
   @return  BTCES_STATUS_NOT_REGISTERED: BTC-ES does not have a registered event callback, so no events were delivered.
   @return  BTCES_STATUS_NOT_INITIALIZED: BTC-ES is not running; btces_init() must be called first.
@@ -409,3 +402,4 @@ BTCES_STATUS btces_wlan_chan
 #endif
 
 #endif /*_QCOM_BTCES_H_*/
+

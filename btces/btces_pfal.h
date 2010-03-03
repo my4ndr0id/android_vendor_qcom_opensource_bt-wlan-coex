@@ -31,13 +31,13 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*------------------------------------------------------------------------------
                  BTC-ES OS PLATFORM ADAPTATION LAYER
-
 ------------------------------------------------------------------------------*/
 
 /**
-   @file btces_pfal.h
-   The BTC-ES Interface for providing Platform OS abstraction required by BTC-ES
-   for its operation.
+  @file btces_pfal.h
+
+  The BTC-ES Interface for providing Platform OS abstraction required by BTC-ES
+  for its operation.
 */
 
 /*=============================================================================
@@ -48,20 +48,9 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
   Notice that changes are listed in reverse chronological order. Please
   use ISO format for dates.
 
-  $Header: //depot/asic/msmshared/sandbox/projects/bt/btces/btces/main/latest/src/btces_pfal.h#9 $
-  $DateTime: 2009/08/03 12:14:30 $
-  $Author: tmonahan $
-
   when        who  what, where, why
   ----------  ---  -----------------------------------------------------------
-  2009-07-31  tam  Updated name for WLAN Channel PFAL API
-  2009-07-14  tam  Deleted btces_pfal_mem_zero(), it was never implemented or used
-  2009-07-02  tam  Allow debug print PFAL functions to be macros again
-  2009-07-01  tam  include shuffle: Moved AEE* out of platform-independent files, etc.
-  2009-06-10  tam  Add PFAL to cancel a running timer
-  2009-06-01  dgh  Converted debug print macros to PFAL functions.  
-  2009-04-17  tam  Timer callback pointer to fcn does not hide *
-  2009-03-25  dgh  Initial version.
+  2010-03-03   pj  Initial Open Source version
 
 =============================================================================*/
 
@@ -116,13 +105,13 @@ FUNCTION:  btces_pfal_init
 /**
     BTC-ES initializes the platform dependent layer to begin operation.
 
-    Initialize all the PFAL API services so that BTC-ES can call them; any 
-    required native resources are dynamically allocated. This API must be 
-    called before any other btces_pfal_xxx() APIs, except as may be noted 
+    Initialize all the PFAL API services so that BTC-ES can call them; any
+    required native resources are dynamically allocated. This API must be
+    called before any other btces_pfal_xxx() APIs, except as may be noted
     in other API descriptions.
-    
+
     @see  btces_pfal_deinit
-    
+
     @return  BTCES_OK: The PFAL layer was initialized successfully.
     @return  BTCES_FAIL: Initialization of the PFAL layer failed for some reason.
 */
@@ -134,13 +123,13 @@ FUNCTION:  btces_pfal_deinit
 /**
     BTC-ES is closing down, and is finished with the platform dependent layer.
 
-    De-Initialize the PFAL layer and services; native resources are released. 
-    The dedicated mutex that is captured by btces_pfal_get_token() must be 
+    De-Initialize the PFAL layer and services; native resources are released.
+    The dedicated mutex that is captured by btces_pfal_get_token() must be
     automatically released as part of this service.
-    
+
     @see  btces_pfal_deinit
     @see  btces_pfal_get_token
-    
+
     @return  none
 */
 void btces_pfal_deinit( void );
@@ -149,13 +138,13 @@ void btces_pfal_deinit( void );
 FUNCTION:  btces_pfal_get_bt_power
 ==============================================================*/
 /**
-    BTC-ES needs to find out the current state of the Bluetooth subsystem, 
-    “On” or “Off”.
+    BTC-ES needs to find out the current state of the Bluetooth subsystem,
+    "On" or "Off"
 
-    BTC-ES uses this API when it is initialized to find out the state of 
-    the native Bluetooth stack. Afterwards, BTC-ES relies on HCI Traffic 
-    Analysis and Native Event reporting to track the stack state.    
-    
+    BTC-ES uses this API when it is initialized to find out the state of
+    the native Bluetooth stack. Afterwards, BTC-ES relies on HCI Traffic
+    Analysis and Native Event reporting to track the stack state.
+
     @return  BTCES_OK: The Bluetooth power state was returned successfully.
     @return  BTCES_FAIL: The function failed for some undefined reason.
     @return  BTCES_STATUS_NOT_INITIALIZED: The PFAL layer is not ready to perform operations.
@@ -164,8 +153,8 @@ FUNCTION:  btces_pfal_get_bt_power
 BTCES_STATUS btces_pfal_get_bt_power
 (
   int *bt_power_ptr
-  /**< [out]: Pointer to where to store the Bluetooth power state; 
-  zero means “Off”, non-zero means “On”. */
+  /**< [out]: Pointer to where to store the Bluetooth power state;
+  zero means "Off" non-zero means "On" */
 );
 
 /*==============================================================
@@ -174,11 +163,11 @@ FUNCTION:  btces_pfal_malloc
 /**
     BTC-ES requests a block of memory to be allocated.
 
-    Behaves like the C Standard Library malloc(). The allocated 
+    Behaves like the C Standard Library malloc(). The allocated
     memory is not initialized.
-    
+
     @see btces_pfal_free
-    
+
     @return  Pointer to allocated memory or NULL.
 */
 void * btces_pfal_malloc
@@ -193,12 +182,12 @@ FUNCTION:  btces_pfal_free
 /**
     BTC-ES requests a previously allocated block of memory to be freed.
 
-    Behaves like C Standard Library free(). The memory must have been 
+    Behaves like C Standard Library free(). The memory must have been
     previously allocated by btces_pfal_malloc().
-    
+
     @see btces_pfal_malloc
     @see btces_pfal_mem_zero
-    
+
     @return  none
 */
 void btces_pfal_free
@@ -211,34 +200,34 @@ void btces_pfal_free
 FUNCTION:  btces_pfal_get_token
 ==============================================================*/
 /**
-    The current execution thread of BTC-ES waits to be granted exclusive 
+    The current execution thread of BTC-ES waits to be granted exclusive
     access to its data.
 
-    BTC-ES uses this API to ensure it is the only execution thread within 
-    a region bounded by btces_pfal_get_token() and btces_pfal_release_token(). 
-    The current execution thread will cease and defer to a different thread 
-    running BTC-ES code that has already acquired the token. There are 
+    BTC-ES uses this API to ensure it is the only execution thread within
+    a region bounded by btces_pfal_get_token() and btces_pfal_release_token().
+    The current execution thread will cease and defer to a different thread
+    running BTC-ES code that has already acquired the token. There are
     additional specifications to this API that should be noted:
-    
-    * If multiple executions threads are waiting on the token, it is platform 
-      dependent which thread is scheduled to execute after the owning thread 
+
+    * If multiple executions threads are waiting on the token, it is platform
+      dependent which thread is scheduled to execute after the owning thread
       releases the token.
-    * BTC-ES will not call this API more than once in the same execution thread, 
+    * BTC-ES will not call this API more than once in the same execution thread,
       so the required behavior in that use case is unspecified.
-    * If an execution thread of BTC-ES code calls btces_pfal_deinit(), then all 
-      other execution threads waiting on the token must resume, but a returned 
-      error is optional; BTC-ES will make a separate test to check if another 
+    * If an execution thread of BTC-ES code calls btces_pfal_deinit(), then all
+      other execution threads waiting on the token must resume, but a returned
+      error is optional; BTC-ES will make a separate test to check if another
       thread has shut down BTC-ES during the wait.
-      
-    These specified behaviors are intended to simplify the implementation of 
+
+    These specified behaviors are intended to simplify the implementation of
     this PFAL service.
-    
+
     @see btces_pfal_release_token
-    
-    @return BTCES_OK: The token was acquired successfully (but BTC-ES will 
+
+    @return BTCES_OK: The token was acquired successfully (but BTC-ES will
             make an extra test to ensure that).
     @return BTCES_FAIL: The function failed for some undefined reason.
-    @return BTCES_STATUS_NOT_INITIALIZED: The PFAL layer is not ready to 
+    @return BTCES_STATUS_NOT_INITIALIZED: The PFAL layer is not ready to
             perform operations.
 */
 BTCES_STATUS btces_pfal_get_token( void );
@@ -247,15 +236,15 @@ BTCES_STATUS btces_pfal_get_token( void );
 FUNCTION:  btces_pfal_release_token
 ==============================================================*/
 /**
-    The current execution thread of BTC-ES no longer needs exclusive 
+    The current execution thread of BTC-ES no longer needs exclusive
     access to its data.
 
-    BTC-ES uses this API to indicate it ending its protected 
-    operation that began after acquiring the token; see the 
+    BTC-ES uses this API to indicate it ending its protected
+    operation that began after acquiring the token; see the
     specification of btces_pfal_get_token()for additional behaviors.
-    
+
     @see btces_pfal_get_token
-    
+
     @return none
 */
 void btces_pfal_release_token( void );
@@ -264,43 +253,43 @@ void btces_pfal_release_token( void );
 FUNCTION:  btces_pfal_start_timer
 ==============================================================*/
 /**
-    BTC-ES starts up a timer to schedule a callback function to 
+    BTC-ES starts up a timer to schedule a callback function to
     execute in the future.
 
-    This service registers a callback to execute once after the 
+    This service registers a callback to execute once after the
     specified time. There is not a means for BTC-ES to find out if
     the timer is still running, but BTC-ES may try to cancel the
     timer before it expires. BTC-ES will use unique values of
     user_data to distinguish between timeouts and thus guard against
     cancel / expiration race conditions.
-    
+
     The current design plans for BTC-ES expects to only have the
     need for one timer at a time, so if BTC-ES schedules a timer
-    while another one is running, the running timer may be canceled 
+    while another one is running, the running timer may be canceled
     inside this function if possible.
 
-    The callback will be written to tolerate being 
-    executed if BTC-ES is shut down, in case it is possible for 
+    The callback will be written to tolerate being
+    executed if BTC-ES is shut down, in case it is possible for
     the callback to execute after btces_pfal_deinit().
-    
+
     @return BTCES_OK: The timeout callback was scheduled successfully.
     @return BTCES_FAIL: The function failed for some undefined reason.
     @return BTCES_STATUS_INVALID_PARAMETERS: timer_cb_ptr or timer_id_ptr
             was NULL or timeout was zero.
-    @return BTCES_STATUS_NOT_INITIALIZED: The PFAL layer is not ready 
+    @return BTCES_STATUS_NOT_INITIALIZED: The PFAL layer is not ready
             to perform operations.
 */
 BTCES_STATUS btces_pfal_start_timer
 (
   uint16  timeout_ms,
-  /**< [in]: Time value in milliseconds when the timer is to 
+  /**< [in]: Time value in milliseconds when the timer is to
              expire and the callback executed. */
   btces_pfal_timer_cb_type  *timer_cb_ptr,
-  /**< [in]: Pointer a service to be called by BTC-ES when the timer 
-             expires. The pointer cannot be NULL. The callback 
+  /**< [in]: Pointer a service to be called by BTC-ES when the timer
+             expires. The pointer cannot be NULL. The callback
              service is described by btces_pfal_timer_cb_type */
   void  *user_data,
-  /**< [in]: Opaque user-supplied data. This same value will always 
+  /**< [in]: Opaque user-supplied data. This same value will always
              be passed to the callback service indicated by timer_cb_ptr. */
   void  **timer_id_ptr
   /**< [out]: Pointer to opaque platform-supplied timer ID. This same value will
@@ -336,49 +325,49 @@ FUNCTION:  btces_msg_*() functions
            BTCES_MSG_*() macros
 ==============================================================*/
 /**
-    BTC-ES reports messages intended for debug purposes. The platform 
-    decides how each message is treated depending on the native debug 
+    BTC-ES reports messages intended for debug purposes. The platform
+    decides how each message is treated depending on the native debug
     settings and the importance of the message.
-    
+
     The BTCES_MSG_*() macros service provides a means for BTC-ES to provide
-    debug output.  The usual format conversion specs as with printf() should be 
+    debug output.  The usual format conversion specs as with printf() should be
     available in the host platform. The entire expression must be enclosed in
     a set of parenthesis, for example:
 
     BTCES_MSG_ERROR( ("BTC-ES: Unexpected value: %d" BTCES_EOL, val) );
 
     BTCES_EOL lets the platform define the preferred end-of-line character(s).
-    
+
     These services allow BTC-ES debug messages to be selectively compiled out
-    based on debug settings and the level of importance of the message. 
+    based on debug settings and the level of importance of the message.
     The platform specific file, btces_plat.h, will resolve these macros.
 
     Macro usage: BTCES_MSG_xxx( (const char *format, ...) );
-    
-    * BTCES_MSG_FATAL(): Used when BTC-ES is unable to proceed; the service 
-      is not expected not to return, but BTC-ES will attempt to shut down 
+
+    * BTCES_MSG_FATAL(): Used when BTC-ES is unable to proceed; the service
+      is not expected not to return, but BTC-ES will attempt to shut down
       and return if it does.
-      
-    * BTCES_MSG_ERROR(): Used when BTC-ES detects an internal error or 
-      inconsistency. It is not used just because BTC-ES returns an error 
+
+    * BTCES_MSG_ERROR(): Used when BTC-ES detects an internal error or
+      inconsistency. It is not used just because BTC-ES returns an error
       to the caller or gets an error from a PFAL service.
-      
+
     * BTCES_MSG_HIGH(): Informative, but terse: Used by BTC-ES to report
       something important with a short amount of output.
-      
+
     * BTCES_MSG_MEDIUM(): Informative: Used by BTC-ES for more typical reports.
-    
+
     * BTCES_MSG_LOW(): Informative, verbose: Used by BTC-ES for more verbose
       reporting, such as function entry / exit, parameter values, etc.
-      
+
     The macro BTCES_ASSERT(boolean_condition) makes use of BTCES_MSG_ERROR() to
-    log a generic assertion failure message if condition evaluates to zero (i.e., 
+    log a generic assertion failure message if condition evaluates to zero (i.e.,
     is false).
 
     @return none
 */
 
-void btces_msg_fatal(const char *format, ...); 
+void btces_msg_fatal(const char *format, ...);
 void btces_msg_error(const char *format, ...);
 void btces_msg_high(const char *format, ...);
 void btces_msg_medium(const char *format, ...);
@@ -403,7 +392,7 @@ FUNCTION:  btces_pfal_wlan_chan
     this API to turn it off, and turn it back on later when WLAN is inactive.
 
     @see btces_wlan_chan
-    
+
     @return BTCES_OK: The set of channels WLAN is using was accepted.
     @return BTCES_STATUS_INVALID_PARAMETERS: Invalid bit positions in wlan_channels were set to 1, so it was discarded.
     @return BTCES_STATUS_NOT_INITIALIZED: The PFAL layer is not ready to perform operations.
@@ -422,3 +411,4 @@ BTCES_STATUS btces_pfal_wlan_chan
 );
 
 #endif /* _BTCES_PFAL_H_ */
+

@@ -27,14 +27,13 @@ OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
 IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 /**
-    @file bt_coex_shim.cpp
+  @file bt_coex_shim.cpp
 
-    Bluetooth Coexistence Shim: BTC-ES to BTC glue for Android+BlueZ
+  Bluetooth Coexistence Shim: BTC-ES to BTC glue for Android+BlueZ
 
-    This file implements the services that bring up or shut down the coexistence
-    solution. For the Android+BlueZ, it includes a simple open and close
-    implementaion that triggers the rest of the BTCES initialization/teardown.
-
+  This file implements the services that bring up or shut down the coexistence
+  solution. For the Android+BlueZ, it includes a simple open and close
+  implementaion that triggers the rest of the BTCES initialization/teardown.
 */
 
 /*=============================================================================
@@ -47,7 +46,7 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
   when        who  what, where, why
   ----------  ---  -----------------------------------------------------------
-  2009-12-28  lyr  Initial version (derived from BM3 source).
+  2010-03-03   pj  Initial Open Source version
 
 =============================================================================*/
 
@@ -60,7 +59,7 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "btces_svc.h"
 #include "btces_plat.h"
 
-#include "wlan_btc_usr_svc.h"
+#include <wlan_btc_usr_svc.h>
 
 /*----------------------------------------------------------------------------
  * Preprocessor Definitions and Constants
@@ -174,7 +173,7 @@ static int _btc_svc_init( btces_funcs *funcs_ptr )
   /* Register with BTC-ES */
   BTCES_STATUS status = funcs_ptr->register_func( btc_services_callback, NULL);
 
-  BTCES_MSG_LOW( "BTC Services test code: btces_register() returned %d" BTCES_EOL, status );  
+  BTCES_MSG_LOW( "BTC Services test code: btces_register() returned %d" BTCES_EOL, status );
 
   return (int) status;
 } /* btc_svc_init */
@@ -190,7 +189,7 @@ static void _btc_svc_deinit
   /* De-register with BTC-ES */
   BTCES_STATUS status = btces_deregister( NULL );
 
-  BTCES_MSG_LOW( "BTC Services test code: btces_deregister() returned %d" BTCES_EOL, status );  
+  BTCES_MSG_LOW( "BTC Services test code: btces_deregister() returned %d" BTCES_EOL, status );
 }
 
 #endif /* BTCES_LOCAL_DEBUG */
@@ -210,7 +209,7 @@ int bt_coex_shim_open( void )
   BTCES_STATUS  ret_val;
   int btc_ret_val;
 
-  btces_funcs funcs_data = 
+  btces_funcs funcs_data =
   {
     btces_register,
     btces_deregister,
@@ -255,3 +254,4 @@ void bt_coex_shim_close( void )
   /* Shut down BTC-ES, don't care about the return value */
   (void) btces_deinit();
 }
+

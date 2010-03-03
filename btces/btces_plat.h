@@ -31,16 +31,15 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*------------------------------------------------------------------------------
                 BTC-ES OS PLATFORM HEADER FOR ANDROID
-
 ------------------------------------------------------------------------------*/
 
 /**
-   @file btces_plat.h
-   
-   The BTC-ES Interface for providing Platform OS abstraction required by BTC-ES
-   for its operation.  This file is for mapping platform-specific types and macros
-   into platform-independent ones.  Anything that can be done without creating a
-   PFAL function should go here.
+  @file btces_plat.h
+
+  The BTC-ES Interface for providing Platform OS abstraction required by BTC-ES
+  for its operation. This file is for mapping platform-specific types and macros
+  into platform-independent ones. Anything that can be done without creating a
+  PFAL function should go here.
 */
 
 /*=============================================================================
@@ -53,7 +52,7 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
   when        who  what, where, why
   ----------  ---  -----------------------------------------------------------
-  2009-09-17  tam  Initial version for Android.
+  2010-03-03   pj  Initial Open Source version
 
 =============================================================================*/
 
@@ -64,15 +63,14 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 /* Android debug output setup, must be before log.h inclusion */
 #ifdef BTCES_DEBUG
 
-// LOG_NDEBUG = 1 disables all logging, 0 enables
+// Comment out LOG_NDEBUG define line to disable all logging
 // Set others to 1 to disable, 0 to enable (LOG_NDDEBUG: debug logs, LOG_NIDEBUG: info logs)
-// TODO: These probably need to change before a release of any kind
 #define LOG_NDEBUG 0
 #define LOG_NDDEBUG 0
 #define LOG_NIDEBUG 0
 
 #define LOG_TAG "BT_COEX"
-#include "cutils/log.h"          
+#include "cutils/log.h"
 #endif
 
 #include <string.h>
@@ -156,3 +154,4 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 /* DO NOT PLACE FUNCTION DECLARATIONS IN THIS FILE.  USE BTCES_PFAL.H INSTEAD. */
 
 #endif /* _BTCES_PLAT_H_ */
+

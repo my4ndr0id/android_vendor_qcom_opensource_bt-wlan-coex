@@ -26,8 +26,7 @@ WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
 OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
 IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
-/*===========================================================================
- 
+/**
   @file wlan_btc_usr_svc.c
 
   @brief This module implements the Bluetooth coexistence service
@@ -38,23 +37,20 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
   from the BT protocol stack to the WLAN protocol stack and WLAN information
   from WLAN stack to Bluetooth stack.
 
-  This implementation is specific to Android and BlueZ Bluetooth Stack
-
-===========================================================================*/
-
+  This implementation is specific to Android and BlueZ Bluetooth Stack.
+*/
 
 /*===========================================================================
 
                        EDIT HISTORY FOR FILE
 
-
   This section contains comments describing changes made to the module.
-  Notice that changes are listed in reverse chronological order.
+  Notice that changes are listed in reverse chronological order. Please
+  use ISO format for dates.
 
-  When        Who       What, Where, Why
-  --------    ------    ----------------------------------------------------
-  07/07/09    kanand    Created module.
-  11/20/09    kanand    Incorporate code review comments
+  when        who  what, where, why
+  ----------  ---  -----------------------------------------------------------
+  2010-03-03   pj  Initial Open Source version
 
 ===========================================================================*/
 
@@ -218,14 +214,14 @@ struct udev_event {
 
 static void parse_udev_event_message(const char *message, struct udev_event *udev_event)
 {
-    while(*message) 
+    while(*message)
     {
-        if(!strncmp(message, ACTION_STR, ACTION_STR_LEN)) 
+        if(!strncmp(message, ACTION_STR, ACTION_STR_LEN))
         {
             message += ACTION_STR_LEN;
             udev_event->event = message;
         }
-        else if(!strncmp(message, DEVPATH_STR, DEVPATH_STR_LEN)) 
+        else if(!strncmp(message, DEVPATH_STR, DEVPATH_STR_LEN))
         {
             message += DEVPATH_STR_LEN;
         }
@@ -233,13 +229,13 @@ static void parse_udev_event_message(const char *message, struct udev_event *ude
             message += SUBSYS_STR_LEN;
             udev_event->system = message;
         }
-        else if(!strncmp(message, FW_STR, FW_STR_LEN)) 
+        else if(!strncmp(message, FW_STR, FW_STR_LEN))
         {
             message += FW_STR_LEN;
             udev_event->fw = message;
         }
-        else if(!strncmp(message, MAJOR_STR, MAJOR_MINOR_STR_LEN) || 
-                !strncmp(message, MINOR_STR, MAJOR_MINOR_STR_LEN)) 
+        else if(!strncmp(message, MAJOR_STR, MAJOR_MINOR_STR_LEN) ||
+                !strncmp(message, MINOR_STR, MAJOR_MINOR_STR_LEN))
         {
             message += MAJOR_MINOR_STR_LEN;
         }
@@ -262,7 +258,7 @@ static eBtcStatus process_udev_event( int fd )
 
     while((bytes = recv(fd, msg, UEVENT_MESSAGE_LENGTH, 0)) > 0) {
 
-        if(bytes > UEVENT_MESSAGE_LENGTH) 
+        if(bytes > UEVENT_MESSAGE_LENGTH)
             continue;
 
         msg[bytes] = '\0';
@@ -272,7 +268,7 @@ static eBtcStatus process_udev_event( int fd )
         udev_event.fw = "";
         parse_udev_event_message(msg, &udev_event);
 
-        if(strcmp(udev_event.system, "firmware") == 0 && 
+        if(strcmp(udev_event.system, "firmware") == 0 &&
            strcmp(udev_event.event, "add") == 0 &&
            strstr(udev_event.fw, "qcom_fw.bin") != NULL)
         {
@@ -315,7 +311,7 @@ static eBtcStatus __select(int fd, tBtcSvcHandle *pBtcSvcHandle)
 
       if(FD_ISSET(pBtcSvcHandle->pd[0], &read_fds)) {
          BTC_INFO("BTC-SVC: Thread signaled to shutdown\n");
-         break; 
+         break;
       }
 
       if(FD_ISSET(fd, &read_fds))
@@ -328,8 +324,8 @@ static eBtcStatus __select(int fd, tBtcSvcHandle *pBtcSvcHandle)
 static eBtcStatus monitor_udev_event(tBtcSvcHandle *pBtcSvc)
 {
     struct sockaddr_nl addr;
-    int sz = 64*1024; 
-    int fd; 
+    int sz = 64*1024;
+    int fd;
 
     memset(&addr, 0, sizeof(addr));
     addr.nl_family = AF_NETLINK;
@@ -350,10 +346,10 @@ static eBtcStatus monitor_udev_event(tBtcSvcHandle *pBtcSvc)
     while (1) {
        if(__select(fd, pBtcSvc) == BTC_SUCCESS) {
           if (process_udev_event(fd) == BTC_WLAN_IF_FOUND) {
-             close(fd); 
+             close(fd);
              return BTC_WLAN_IF_FOUND;
           }
-          else 
+          else
              continue;
        }
        else
@@ -376,16 +372,16 @@ static eBtcStatus check_wlan_present(tBtcSvcHandle *pBtcSvcHandle) {
 
    absent = stat("/sys/class/net/wlan0", &stat_buffer);
 
-   if( !absent ) 
+   if( !absent )
       return BTC_SUCCESS;
 
    if(monitor_udev_event(pBtcSvcHandle) == BTC_WLAN_IF_FOUND)
-    { 
+    {
        // Sleep for sometime. Allow driver to initialize
-       usleep(BTC_SVC_WLAN_SETTLE_TIME); 
+       usleep(BTC_SVC_WLAN_SETTLE_TIME);
        return BTC_SUCCESS;
     }
-   
+
    // We would get here only if thread was shutdown while we
    // were detecting WLAN interface
    return BTC_FAILURE;
@@ -404,8 +400,8 @@ static eBtcStatus check_wlan_present(tBtcSvcHandle *pBtcSvcHandle) {
 
   \sa
   --------------------------------------------------------------------------*/
-void btc_svc_inject_bt_event (btces_event_enum bt_event, 
-                              btces_event_data_union *event_data, 
+void btc_svc_inject_bt_event (btces_event_enum bt_event,
+                              btces_event_data_union *event_data,
                               void *user_data)
 {
    tBtcSvcHandle *pBtcSvcHandle = (tBtcSvcHandle*)user_data;
@@ -415,7 +411,7 @@ void btc_svc_inject_bt_event (btces_event_enum bt_event,
    tAniMsgHdr *msgHdr = NULL;
    tBtcBtEvent *btEvent = NULL;;
 
-   switch (bt_event) 
+   switch (bt_event)
    {
       case BTCES_EVENT_DEVICE_SWITCHED_ON :
       case BTCES_EVENT_DEVICE_SWITCHED_OFF :
@@ -443,7 +439,7 @@ void btc_svc_inject_bt_event (btces_event_enum bt_event,
 
    /* Prepare to send a WLAN_BTC_SIGNAL_EVENT_IND message to the kernel
       nl_pid = 0;   implies message is for Linux Kernel
-      nl_groups = 0; implies message is unicast 
+      nl_groups = 0; implies message is unicast
    */
    memset(&dest_addr, 0, sizeof(dest_addr));
    dest_addr.nl_family = AF_NETLINK;
@@ -487,8 +483,8 @@ void btc_svc_inject_bt_event (btces_event_enum bt_event,
    }
 #endif // BTC_DEBUG
 
-   if(sendto(pBtcSvcHandle->fd, (void *)nl_header, nl_header->nlmsg_len, 0, 
-      (struct sockaddr *)&dest_addr, sizeof(struct sockaddr_nl)) < 0) 
+   if(sendto(pBtcSvcHandle->fd, (void *)nl_header, nl_header->nlmsg_len, 0,
+      (struct sockaddr *)&dest_addr, sizeof(struct sockaddr_nl)) < 0)
    {
       BTC_ERR("BTC-SVC: Unable to send WLAN_BTC_BT_EVENT_IND to WLAN\n");
       BTC_OS_ERR;
@@ -497,7 +493,7 @@ void btc_svc_inject_bt_event (btces_event_enum bt_event,
 
 /*--------------------------------------------------------------------------
   \brief process_event() - Utility function to detect WLAN Interface
-  
+
   \param Pointer to BTC Services
 
   \return Returns Status value
@@ -535,7 +531,7 @@ eBtcStatus process_message(int fd, tBtcSvcHandle *pBtcSvcHandle)
    len = (unsigned int) slen;
 
    //We really do not need a for loop. But this allows clients to send multiple netlink messages
-   for (nh = (struct nlmsghdr *) buffer; NLMSG_OK (nh, len); nh = NLMSG_NEXT (nh, len)) 
+   for (nh = (struct nlmsghdr *) buffer; NLMSG_OK (nh, len); nh = NLMSG_NEXT (nh, len))
    {
       /* The end of multipart message. */
       if (nh->nlmsg_type == NLMSG_DONE)
@@ -629,7 +625,7 @@ eBtcStatus process_message(int fd, tBtcSvcHandle *pBtcSvcHandle)
 
 /*--------------------------------------------------------------------------
   \brief thread_function() - Thread function that monitors the WLAN Interface
-  
+
   \param Pointer for Global BTC Services Data passed as VOID pointer
 
   \return Returns Status value
@@ -645,16 +641,16 @@ static void* thread_function(void* arg)
    struct nlmsghdr *nl_header = NULL;
    tAniMsgHdr *msgHdr = NULL;
    void *pBtc = NULL;
-   
+
 check_wlan:
    // Check if WLAN device is there or not. Following function would
    // block this thread until WLAN module is loaded or the thread is
    // signaled to shutdown
-   if( check_wlan_present(pBtcSvcHandle) != BTC_SUCCESS) 
+   if( check_wlan_present(pBtcSvcHandle) != BTC_SUCCESS)
       return NULL;
 
    BTC_INFO( "BTC-SVC: WLAN net device detected\n");
-      
+
    // Create a netlink socket
    fd  = socket(AF_NETLINK, SOCK_RAW, WLAN_NLINK_PROTO_FAMILY);
    if(fd < 0) {
@@ -662,16 +658,16 @@ check_wlan:
       BTC_OS_ERR;
       return NULL;
    }
-  
+
    //Prepare to bind the socket
    memset(&src_addr, 0, sizeof(src_addr));
    src_addr.nl_family = AF_NETLINK; /* Domain */
    src_addr.nl_pid = getpid();
 
    //Subscriptions: WLAN can choose to mcast or ucast
-   src_addr.nl_groups = WLAN_NLINK_MCAST_GRP_ID; 
+   src_addr.nl_groups = WLAN_NLINK_MCAST_GRP_ID;
 
-   // Bind assigns a name to the socket. 
+   // Bind assigns a name to the socket.
    ret = bind(fd, (struct sockaddr*)&src_addr, sizeof(src_addr));
    if (ret < 0) {
       BTC_ERR( "BTC-SVC: Cannot bind Netlink socket\n");
@@ -692,7 +688,7 @@ check_wlan:
 
    /* Prepare to send a "Query WLAN" message to the kernel
       nl_pid = 0;   implies message is for Linux Kernel
-      nl_groups = 0; implies message is unicast 
+      nl_groups = 0; implies message is unicast
    */
    memset(&dest_addr, 0, sizeof(dest_addr));
    dest_addr.nl_family = AF_NETLINK;
@@ -708,13 +704,13 @@ check_wlan:
    msgHdr->type = WLAN_BTC_QUERY_STATE_REQ;
    msgHdr->length = 0;
 
-   if(sendto(fd, (void *)nl_header, nl_header->nlmsg_len, 0, 
-      (struct sockaddr *)&dest_addr, sizeof(struct sockaddr_nl)) < 0) 
+   if(sendto(fd, (void *)nl_header, nl_header->nlmsg_len, 0,
+      (struct sockaddr *)&dest_addr, sizeof(struct sockaddr_nl)) < 0)
    {
       BTC_ERR("BTC-SVC: Unable to send WLAN_BTC_QUERY_STATE_REQ msg\n");
       BTC_OS_ERR;
       //Implies WLAN module is not present. Go back to polling for WLAN
-      close(fd); 
+      close(fd);
       goto check_wlan;
    }
 
@@ -724,17 +720,17 @@ check_wlan:
       if(__select(fd, pBtcSvcHandle) == BTC_SUCCESS) {
          if (process_message(fd, pBtcSvcHandle) == BTC_WLAN_IF_DOWN) {
             //Implies WLAN device went down. Go back to polling for WLAN
-            close(fd); 
+            close(fd);
             goto check_wlan;
          }
-         else 
+         else
             continue;
       }
       else
          break;
    }
 
-   // Thread is being terminated. 
+   // Thread is being terminated.
    BTC_INFO( "BTC-SVC: Thread terminating\n");
    close(fd);
    return NULL;
@@ -770,14 +766,14 @@ int btc_svc_init (btces_funcs *pBtcEsFuncs)
    gpBtcSvc->btcEsFuncs.wlan_chan_func = pBtcEsFuncs->wlan_chan_func;
 
    gpBtcSvc->btcSvcState = BTC_SVC_UNREGISTERED;
-  
-   // Create a pipe that can be used to signal thread shutdown 
+
+   // Create a pipe that can be used to signal thread shutdown
    if(pipe(gpBtcSvc->pd)) {
       BTC_ERR( "BTC-SVC: Cannot open pipe\n");
       BTC_OS_ERR;
       free(gpBtcSvc);
       gpBtcSvc = NULL;
-      return -1; 
+      return -1;
    }
 
    //Spawn a thread which will monitor the WLAN Interface. This thread
@@ -789,7 +785,7 @@ int btc_svc_init (btces_funcs *pBtcEsFuncs)
       //log an error
       BTC_ERR( "BTC-SVC: pthread_create failed\n");
       close(gpBtcSvc->pd[0]);
-      close(gpBtcSvc->pd[1]); 
+      close(gpBtcSvc->pd[1]);
       free(gpBtcSvc);
       gpBtcSvc = NULL;
       return -1;
@@ -818,10 +814,11 @@ void btc_svc_deinit (void)
 
       //close the pipes opened for communicating to worker BTC-SVC thread
       close(gpBtcSvc->pd[0]);
-      close(gpBtcSvc->pd[1]); 
+      close(gpBtcSvc->pd[1]);
 
       //Deallocate memory of BTC-SVC
       free(gpBtcSvc);
       gpBtcSvc = NULL;
    }
 }
+

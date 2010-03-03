@@ -1,6 +1,6 @@
 #--------------------------------------------------------------------------
-#Copyright (c) 2009, Code Aurora Forum. All rights reserved.
-
+#Copyright (c) 2009-2010, Code Aurora Forum. All rights reserved.
+#
 #Redistribution and use in source and binary forms, with or without
 #modification, are permitted provided that the following conditions are met:
 #    * Redistributions of source code must retain the above copyright
@@ -12,7 +12,7 @@
 #      the names of its contributors may be used to endorse or promote
 #      products derived from this software without specific prior written
 #      permission.
-
+#
 #THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
 #AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
 #IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
@@ -29,6 +29,9 @@
 # Build the Coex solution for BlueZ + Libra: BT Coex Shim, BTC-ES
 # But only for builds with the Libra WLAN
 
+ifeq ($(BOARD_HAVE_BLUETOOTH), true)
+ifeq ($(BOARD_HAS_QCOM_WLAN), true)
+
 LOCAL_PATH:= $(call my-dir)
 include $(CLEAR_VARS)
 
@@ -37,6 +40,7 @@ BLUEZ_ROOT := $(LOCAL_PATH)/../../../external/bluetooth/bluez/include/bluetooth
 
 # This is used by BT Coex Shim and BTC-ES
 ifeq ($(TARGET_BUILD_TYPE),debug)
+LOCAL_CFLAGS += -DBTC_DEBUG
 LOCAL_CFLAGS += -DBTCES_DEBUG
 endif
 
@@ -47,7 +51,6 @@ LOCAL_CFLAGS += \
 LOCAL_C_INCLUDES += $(LOCAL_PATH)
 LOCAL_C_INCLUDES += $(LOCAL_PATH)/btc
 LOCAL_C_INCLUDES += $(LOCAL_PATH)/btces
-LOCAL_C_INCLUDES += $(LOCAL_PATH)/../../qcom-proprietary/wlan/CORE/SVC/external/
 LOCAL_C_INCLUDES += $(BLUEZ_ROOT)
 LOCAL_C_INCLUDES += $(call include-path-for, dbus)
 
@@ -70,3 +73,7 @@ LOCAL_MODULE_TAGS := eng development
 
 LOCAL_PRELINK_MODULE := false
 include $(BUILD_EXECUTABLE)
+
+endif # BOARD_HAS_QCOM_WLAN
+endif # BOARD_HAVE_BLUETOOTH
+

@@ -31,14 +31,15 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*------------------------------------------------------------------------------
                  BTC-ES SERVICES LAYER
-
 ------------------------------------------------------------------------------*/
 
 /**
-   @file btces_svc.h
-   The BTC-ES Interface for platform independent services to modules in BTC-ES.
-   These are not part of the public API.
+  @file btces_svc.h
+
+  The BTC-ES Interface for platform independent services to modules in BTC-ES.
+  These are not part of the public API.
 */
+
 /*=============================================================================
 
                        EDIT HISTORY FOR MODULE
@@ -49,9 +50,7 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
   when        who  what, where, why
   ----------  ---  -----------------------------------------------------------
-  2009-04-24  tam  Added comments after code review and unit tests.
-  2009-03-31  tam  Fleshed out according to latest LLD document.
-  2009-03-25  dgh  Initial version.
+  2010-03-03   pj  Initial Open Source version
 
 =============================================================================*/
 
@@ -93,7 +92,7 @@ typedef union
  * -------------------------------------------------------------------------*/
 
 /**
-   Abstract enumeration of native events from all platforms that are not 
+   Abstract enumeration of native events from all platforms that are not
    provided by HCI traffic analysis
 */
 typedef enum
@@ -245,3 +244,4 @@ void btces_svc_native_event_in
 #endif
 
 #endif /* _BTCES_SVC_H_ */
+

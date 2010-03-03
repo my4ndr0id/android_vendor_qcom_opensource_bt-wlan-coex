@@ -26,38 +26,34 @@ WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
 OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
 IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
-/*============================================================================
-FILE:         btces_pfal.cpp
+/**
+  @file btces_pfal.cpp
 
-OVERVIEW:     This file implements BTC-ES PFAL API for the Android/BlueZ
-platform.
+  This file implements BTC-ES PFAL API for the Android/BlueZ platform.
 
-In addition to the publicly advertised PFAL APIs (via btces_pfal.h), the
-platform adaptation layer also implements the glue code required to interface
-with the BlueZ stack and derive HCI/Native events, including the worker thread
-utilized for this purpose.
-The PFAL implementation also provides the main function since on the
-Android+BlueZ platform, the BTCES model is that of an executable, running as a
-daemon.
-The main() function in this file is responsible for triggering the BT Coex shim
-for BlueZ, much as BM3 initialization logic would directly invoke the shim API
-to initiate the rest of BTCES functionality.
+  In addition to the publicly advertised PFAL APIs (via btces_pfal.h), the
+  platform adaptation layer also implements the glue code required to interface
+  with the BlueZ stack and derive HCI/Native events, including the worker thread
+  utilized for this purpose.
+  The PFAL implementation also provides the main function since on the
+  Android+BlueZ platform, the BTCES model is that of an executable, running as a
+  daemon.
+  The main() function in this file is responsible for triggering the BT Coex shim
+  for BlueZ, much as BM3 initialization logic would directly invoke the shim API
+  to initiate the rest of BTCES functionality.
+*/
 
-DEPENDENCIES: 
-
-============================================================================*/
 /*=============================================================================
 
-EDIT HISTORY FOR MODULE
+                       EDIT HISTORY FOR MODULE
 
-This section contains comments describing changes made to the module.
-Notice that changes are listed in reverse chronological order. Please
-use ISO format for dates.
+  This section contains comments describing changes made to the module.
+  Notice that changes are listed in reverse chronological order. Please
+  use ISO format for dates.
 
-when        who  what, where, why
-----------  ---  -----------------------------------------------------------
-2010-01-15  lyr  Added native event support
-2010-01-04  lyr  Initial version for Android+BlueZ (derived from BM3 sources)
+  when        who  what, where, why
+  ----------  ---  -----------------------------------------------------------
+  2010-03-03   pj  Initial Open Source version
 
 =============================================================================*/
 
@@ -146,25 +142,25 @@ when        who  what, where, why
 #define BTCES_HCI_LIB_TIMEOUT 5000
 
 /* Maximum size of default adapter string */
-#define BTCES_MAX_ADAPTER_SIZE 128 
+#define BTCES_MAX_ADAPTER_SIZE 128
 
 /* Size of adapter id (e.g. hci0) */
-#define BTCES_ADAPTER_ID_SIZE 4 
+#define BTCES_ADAPTER_ID_SIZE 4
 
 /* Maximum size of an object path */
-#define BTCES_MAX_OBJ_PATH_SIZE 128 
+#define BTCES_MAX_OBJ_PATH_SIZE 128
 
 /* Maximum size of dev addr string - dev_XX_XX_XX_XX_XX_XX (21 characters) */
-#define BTCES_MAX_DEV_ADDR_STR 21 
+#define BTCES_MAX_DEV_ADDR_STR 21
 
 /* BT addr size in bytes */
-#define BTCES_BT_ADDR_SIZE 6 
+#define BTCES_BT_ADDR_SIZE 6
 
 /* Hexadecimal base definition for strtol */
 #define BTCES_BASE_HEX 16
 
 /* Define a max macro */
-#define BTCES_MAX(x,y) ( ((x) > (y)) ? (x) : (y) )  
+#define BTCES_MAX(x,y) ( ((x) > (y)) ? (x) : (y) )
 
 /* Macro for the bluez path */
 #define BTCES_BLUEZ_PATH "/org/bluez/"
@@ -486,19 +482,19 @@ static BTCES_STATUS btces_pfal_configure_ca_support
 
   /**
      The logic for determining CA behavior is:
-     
+
      -- If "turn off CA if WLAN" is FALSE, other values do not matter
-     
+
      -- If "turn off CA if WLAN" CA mode is turned on:
-     
+
      If CA mode needs to be read, then "initial CA mode" is set to UNKNOWN
      (it is derived at run time from BlueZ)
-     
+
      If CA mode should not be read, we set "initial CA mode" to user
      preference to preserve what it should be reset to after WLAN is done.
      In this case during WLAN chan updates, this "initial CA mode" is
      never updated.
-     
+
      Note: If the user sets CA mode not to be read from BlueZ and fails to
      provide an initial value, then we default to ON for "initial CA mode"
   */
@@ -599,7 +595,7 @@ static dbus_bool_t btces_pfal_dbus_add_watch_callback
     /** Need to return TRUE per dbus watch API since it is not a failure -
        just not of our interest due to being non-readable
     */
-    BTCES_MSG_MEDIUM("btces_pfal_dbus_add_watch_callback(): watch not readable. Flags: %d" BTCES_EOL, 
+    BTCES_MSG_MEDIUM("btces_pfal_dbus_add_watch_callback(): watch not readable. Flags: %d" BTCES_EOL,
                      watch_info.flags);
     return TRUE;
   }
@@ -616,8 +612,8 @@ static dbus_bool_t btces_pfal_dbus_add_watch_callback
                sizeof(watch_info));
 
 
-  BTCES_MSG_HIGH("btces_pfal_dbus_add_watch_callback(): watch enabled for fd: %d, watch: %p" BTCES_EOL, 
-                 watch_info.new_fd, 
+  BTCES_MSG_HIGH("btces_pfal_dbus_add_watch_callback(): watch enabled for fd: %d, watch: %p" BTCES_EOL,
+                 watch_info.new_fd,
                  (void *)watch_ptr);
   return TRUE;
 }
@@ -650,7 +646,7 @@ static void btces_pfal_dbus_toggle_watch_callback
   void      *user_data
 )
 {
-  dbus_bool_t                    enabled = FALSE; 
+  dbus_bool_t                    enabled = FALSE;
   btces_pfal_watch_info_struct   watch_info;
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
@@ -665,7 +661,7 @@ static void btces_pfal_dbus_toggle_watch_callback
   watch_info.flags = dbus_watch_get_flags(watch_ptr);
   if(!(DBUS_WATCH_READABLE & watch_info.flags))
   {
-    BTCES_MSG_ERROR("btces_pfal_dbus_toggle_watch_callback(): watch: %p not readable. Flags: %d" BTCES_EOL, 
+    BTCES_MSG_ERROR("btces_pfal_dbus_toggle_watch_callback(): watch: %p not readable. Flags: %d" BTCES_EOL,
                     watch_ptr,
                     watch_info.flags);
     return;
@@ -674,7 +670,7 @@ static void btces_pfal_dbus_toggle_watch_callback
   /* Check whether the watch has been enabled */
   enabled = dbus_watch_get_enabled(watch_ptr);
 
-  BTCES_MSG_HIGH("btces_pfal_dbus_toggle_watch_callback(): watch status: %d" BTCES_EOL, 
+  BTCES_MSG_HIGH("btces_pfal_dbus_toggle_watch_callback(): watch status: %d" BTCES_EOL,
                  enabled);
 
   /* Get the fd to be used for the dbus select operations; if feasible */
@@ -696,8 +692,8 @@ static void btces_pfal_dbus_toggle_watch_callback
                (void *)&watch_info,
                sizeof(watch_info));
 
-  BTCES_MSG_HIGH("btces_pfal_dbus_toggle_watch_callback(): watch toggled for fd: %d, watch: %p" BTCES_EOL, 
-                 watch_info.new_fd, 
+  BTCES_MSG_HIGH("btces_pfal_dbus_toggle_watch_callback(): watch toggled for fd: %d, watch: %p" BTCES_EOL,
+                 watch_info.new_fd,
                  (void *)watch_ptr);
 }
 
@@ -779,8 +775,8 @@ static BTCES_STATUS btces_pfal_dbus_enable_events
   /* No need to check conn_ptr (dbus will fail and we catch that directly) */
 
   /* Enable the Manager interface signals */
-  dbus_bus_add_match(g_btces_pfal_data.worker_thread_info.conn_ptr, 
-                     "type='signal',interface='org.bluez.Manager'", 
+  dbus_bus_add_match(g_btces_pfal_data.worker_thread_info.conn_ptr,
+                     "type='signal',interface='org.bluez.Manager'",
                      &bus_error);
 
   dbus_connection_flush(g_btces_pfal_data.worker_thread_info.conn_ptr);
@@ -796,8 +792,8 @@ static BTCES_STATUS btces_pfal_dbus_enable_events
   BTCES_MSG_MEDIUM("btces_pfal_dbus_enable_events(): Manager signals enabled" BTCES_EOL);
 
   /* Add A2DP (sink) signals here */
-  dbus_bus_add_match(g_btces_pfal_data.worker_thread_info.conn_ptr, 
-                     "type='signal',interface='org.bluez.AudioSink'", 
+  dbus_bus_add_match(g_btces_pfal_data.worker_thread_info.conn_ptr,
+                     "type='signal',interface='org.bluez.AudioSink'",
                      &bus_error);
 
   dbus_connection_flush(g_btces_pfal_data.worker_thread_info.conn_ptr);
@@ -911,7 +907,7 @@ static BTCES_STATUS btces_pfal_dbus_get_info
       /* Get the obj path or string argument from the rsp */
       (void) dbus_message_get_args(bus_rsp_ptr,
                                    &bus_error,
-                                   ((BTCES_PFAL_DBUS_RSP_OBJ_PATH_TYPE == rsp_type) ? 
+                                   ((BTCES_PFAL_DBUS_RSP_OBJ_PATH_TYPE == rsp_type) ?
                                     DBUS_TYPE_OBJECT_PATH : DBUS_TYPE_STRING),
                                    &bus_rsp_str_ptr,
                                    DBUS_TYPE_INVALID);
@@ -922,7 +918,7 @@ static BTCES_STATUS btces_pfal_dbus_get_info
         BTCES_MSG_ERROR("btces_pfal_dbus_get_info(): could not get rsp str!" BTCES_EOL);
         BTCES_MSG_ERROR("Error name: %s", bus_error.name);
         BTCES_MSG_ERROR("Error message: %s", bus_error.message);
-        
+
         dbus_message_unref(bus_rsp_ptr);
         dbus_error_free(&bus_error);
         return BTCES_FAIL;
@@ -971,7 +967,7 @@ static boolean btces_pfal_dbus_get_default_adapter
     return FALSE;
   }
 
-  BTCES_MSG_MEDIUM("btces_pfal_dbus_get_default_adapter(): adapter %s retrieved" BTCES_EOL, 
+  BTCES_MSG_MEDIUM("btces_pfal_dbus_get_default_adapter(): adapter %s retrieved" BTCES_EOL,
                    g_btces_pfal_data.worker_thread_info.default_adapter);
   return TRUE;
 }
@@ -1062,7 +1058,7 @@ static boolean btces_pfal_dbus_get_dev_address_from_msg
   BTCES_MSG_MEDIUM("btces_pfal_dbus_get_dev_address_from_msg(): msg obj path: %s" BTCES_EOL,
                    obj_path_ptr);
 
-  BTCES_MSG_MEDIUM("btces_pfal_dbus_get_dev_address_from_msg(): address retrieved: %x %x %x %x %x %x" BTCES_EOL, 
+  BTCES_MSG_MEDIUM("btces_pfal_dbus_get_dev_address_from_msg(): address retrieved: %x %x %x %x %x %x" BTCES_EOL,
                    addr_ptr[0], addr_ptr[1], addr_ptr[2], addr_ptr[3],
                    addr_ptr[4], addr_ptr[5]);
   return TRUE;
@@ -1115,7 +1111,7 @@ static BTCES_STATUS btces_pfal_dbus_close
 
   /* Unref the dbus connection (is this required?) */
   if(NULL != g_btces_pfal_data.worker_thread_info.conn_ptr)
-  { 
+  {
     dbus_connection_unref(g_btces_pfal_data.worker_thread_info.conn_ptr);
     g_btces_pfal_data.worker_thread_info.conn_ptr = NULL;
   }
@@ -1629,7 +1625,7 @@ static BTCES_STATUS btces_pfal_update_afh_map
   /**
      We take the route of using a device descriptor that was opened in the
      worker thread at the time that we detected a new HCI device added
-     
+
      Since this read is happening in the BTC SVC thread, this could result in
      race conditions.
      We live with this knowing the following:
@@ -1639,7 +1635,7 @@ static BTCES_STATUS btces_pfal_update_afh_map
        HCI requests and that's it. In this case, if there is no device it's okay
        for the requests to fail anyway (coex is meaningless) so this should be
        fine
-     
+
      Note: we also separate the dd from the hci_fd for two reasons:
      - it keeps the socket for our HCI events/commands read clean of any bytes
        from the WLAN channel operations: easier debugging
@@ -1682,7 +1678,7 @@ static BTCES_STATUS btces_pfal_update_ca_mode
   /**
      We take the route of using a device descriptor that was opened in the
      worker thread at the time that we detected a new HCI device added
-     
+
      Since this read is happening in the BTC SVC thread, this could result in
      race conditions.
      We live with this knowing the following:
@@ -1692,7 +1688,7 @@ static BTCES_STATUS btces_pfal_update_ca_mode
        HCI requests and that's it. In this case, if there is no device it's okay
        for the requests to fail anyway (coex is meaningless) so this should be
        fine
-     
+
      Note: we also separate the dd from the hci_fd for two reasons:
      - it keeps the socket for our HCI events/commands read clean of any bytes
        from the WLAN channel operations: easier debugging
@@ -1738,7 +1734,7 @@ static BTCES_STATUS btces_pfal_update_ca_mode
     if(CA_MODE_ON == g_btces_pfal_data.initial_ca_mode)
     {
       ca_mode = CA_MODE_OFF;
-      
+
       if(0 > hci_write_afh_mode(g_btces_pfal_data.worker_thread_info.hci_lib_dd,
                                 ca_mode,
                                 BTCES_HCI_LIB_TIMEOUT))
@@ -1755,7 +1751,7 @@ static BTCES_STATUS btces_pfal_update_ca_mode
     {
       /* Turn it back on */
       ca_mode = CA_MODE_ON;
-      
+
       if(0 > hci_write_afh_mode(g_btces_pfal_data.worker_thread_info.hci_lib_dd,
                                 ca_mode,
                                 BTCES_HCI_LIB_TIMEOUT))
@@ -1818,7 +1814,7 @@ static void btces_pfal_timer_notify_callback
   {
     BTCES_MSG_MEDIUM("btces_pfal_timer_notify_callback(): notifying client" BTCES_EOL);
     client_cb(client_user_data);
-  }    
+  }
 
 }
 
@@ -1840,7 +1836,7 @@ static void bt_wlan_coex_update_afh_mask
   {
     return;   /* Leave if any parameters are invalid*/
   }
-    
+
   /* Update the AHF mask bitmap passed in for the given WLAN channel */
 
   /* Convert WLAN channel number (1-14) to frequency in MHz:
@@ -1924,7 +1920,7 @@ BTCES_STATUS btces_pfal_init
     {
       (void) pthread_mutexattr_destroy(&mutex_attr);
       return BTCES_STATUS_INITIALIZATION_FAILED;
-    }    
+    }
 
     /* Destroy mutex attributes */
     (void) pthread_mutexattr_destroy(&mutex_attr);
@@ -2017,7 +2013,7 @@ FUNCTION:  btces_pfal_get_bt_power
 BTCES_STATUS btces_pfal_get_bt_power
 (
   int *bt_power_ptr
-  /**< [out]: Pointer to where to store the Bluetooth power state; 
+  /**< [out]: Pointer to where to store the Bluetooth power state;
      zero means "Off", non-zero means "On".
   */
 )
@@ -2032,7 +2028,7 @@ BTCES_STATUS btces_pfal_get_bt_power
        started. At this point, we declare power-off (since this get_bt_power API
        seems to be called at btces init time). Subsequently native events should
        kick in and cause BT power to go on (alternatively, the first events
-       should cause the same effect) 
+       should cause the same effect)
        Additionally, WLAN should not be looking at the 3-wire PTA until the SoC
        is really up and getting HCI commands anyway; it is better for WLAN to
        err on the side of thinking that Bluetooth is off instead of looking at
@@ -2098,7 +2094,7 @@ BTCES_STATUS btces_pfal_get_token
   {
     return BTCES_FAIL;
   }
-  
+
   return BTCES_SUCCESS;
 } /* btces_pfal_get_token */
 
@@ -2131,14 +2127,14 @@ FUNCTION:  btces_pfal_start_timer
 BTCES_STATUS btces_pfal_start_timer
 (
   uint16  timeout_ms,
-  /**< [in]: Time value in milliseconds when the timer is to 
+  /**< [in]: Time value in milliseconds when the timer is to
              expire and the callback executed. */
   btces_pfal_timer_cb_type  *timer_cb_ptr,
-  /**< [in]: Pointer a service to be called by BTC-ES when the timer 
-             expires. The pointer cannot be NULL. The callback 
+  /**< [in]: Pointer a service to be called by BTC-ES when the timer
+             expires. The pointer cannot be NULL. The callback
              service is described by btces_pfal_timer_cb_type */
   void  *user_data,
-  /**< [in]: Opaque user-supplied data. This same value will always 
+  /**< [in]: Opaque user-supplied data. This same value will always
              be passed to the callback service indicated by timer_cb_ptr. */
   void  **timer_id_ptr
   /**< [out]: Pointer to opaque platform-supplied timer ID. This same value will
@@ -2162,7 +2158,7 @@ BTCES_STATUS btces_pfal_start_timer
 
   /* Allocate timer structure */
   timer_ptr = (btces_pfal_timer_struct *) malloc(sizeof(btces_pfal_timer_struct));
-  
+
   if(NULL == timer_ptr)
   {
     return BTCES_STATUS_OUT_OF_MEMORY;
@@ -2254,7 +2250,7 @@ void btces_pfal_stop_timer
      b) in order to protect race conditions, we would need to introduce extra
      protection between the stop_timer and the callback being invoked, which
      seems superfluous given the current btces usage of timers
-     
+
      In other words, every timer started will invariably fire and this is okay
      since the client for a timer is expected to handle this case anyway.
    */
@@ -2335,7 +2331,7 @@ BTCES_STATUS btces_pfal_wlan_chan
     }
   }
 
-  /* Turn on/off Channel assessment with BlueZ if needed  */  
+  /* Turn on/off Channel assessment with BlueZ if needed  */
   if(TRUE == g_btces_pfal_data.turn_off_ca_if_wlan)
   {
     /* At this point, if num_wlan_chans is non-zero, this means WLAN is active,
@@ -2352,7 +2348,7 @@ BTCES_STATUS btces_pfal_wlan_chan
       (void) btces_pfal_update_ca_mode(FALSE);
     }
   }  /* End turn_off_ca_if_wlan operations */
-  
+
   /* Send the AFH command via BlueZ lib. We don't care when it completes
   */
   if(BTCES_SUCCESS != btces_pfal_update_afh_map(afh_mask))
@@ -2614,7 +2610,7 @@ void *btces_pfal_worker_thread
     if(BTCES_SUCCESS != btces_pfal_hci_open())
     {
       BTCES_MSG_ERROR("worker_thread(): error setting up hci" BTCES_EOL);
-      
+
       goto worker_thread_exit;
     }
 
@@ -2731,3 +2727,4 @@ worker_thread_exit:
   /* Keep the compiler happy */
   return (void *)unused;
 }
+

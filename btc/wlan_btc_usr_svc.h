@@ -26,16 +26,29 @@ WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
 OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
 IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
-/*===========================================================================
-  \file wlan_btc_usr_svc.h
-  
+/**
+  @file wlan_btc_usr_svc.h
+
   Exports and types for the BTC Service interface. This is shared between
   BTC-ES layer and BTC Services layer.
-  
-  This implementation is specific to Android platform and works with BlueZ
-  Bluetooth Stack
 
-===========================================================================*/
+  This implementation is specific to Android platform and works with BlueZ
+  Bluetooth Stack.
+*/
+
+/*=============================================================================
+
+                       EDIT HISTORY FOR MODULE
+
+  This section contains comments describing changes made to the module.
+  Notice that changes are listed in reverse chronological order. Please
+  use ISO format for dates.
+
+  when        who  what, where, why
+  ----------  ---  -----------------------------------------------------------
+  2010-03-03   pj  Initial Open Source version
+
+=============================================================================*/
 
 #ifndef WLAN_BTC_USR_SVC_H__
 #define WLAN_BTC_USR_SVC_H__
@@ -69,3 +82,4 @@ void btc_svc_deinit (void);
 #endif
 
 #endif //WLAN_BTC_USR_SVC_H__
+

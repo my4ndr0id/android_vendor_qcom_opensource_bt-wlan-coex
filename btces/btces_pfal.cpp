@@ -111,7 +111,7 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 #define WLAN_80211_RF_CH_1_MHZ       (2412) /**< WLAN Ch1 = 2412 MHz */
 #define WLAN_80211_RF_CH_SPACING_MHZ (5)    /**< WLAN Channels 1-13 are spaced @ 5 MHz */
-#define WLAN_80211_RF_CH_14_MHZ      (2484) /**< WLAN Ch14 = 2482 MHz */
+#define WLAN_80211_RF_CH_14_MHZ      (2484) /**< WLAN Ch14 = 2484 MHz */
 #define BT_RF_CHANNEL_0_MHZ          (2402) /**< Bluetooth Ch0 = 2402 MHz */
 #define BT_N_MIN  (20)  /**< Nmin: Minimum number of BT channels, this is a spec value */
 

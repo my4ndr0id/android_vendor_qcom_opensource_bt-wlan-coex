@@ -186,7 +186,6 @@ FUNCTION:  btces_pfal_free
     previously allocated by btces_pfal_malloc().
 
     @see btces_pfal_malloc
-    @see btces_pfal_mem_zero
 
     @return  none
 */

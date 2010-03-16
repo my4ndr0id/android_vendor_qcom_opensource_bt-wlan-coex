@@ -45,6 +45,8 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
   when        who  what, where, why
   ----------  ---  -----------------------------------------------------------
+  2010-04-05   pj  Modified the BTCES design to allow Inquiries to be queued
+                   with ACL Connection setup and Remote Name Request.
   2010-03-03   pj  Initial Open Source version
 
 =============================================================================*/
@@ -68,7 +70,7 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
              sizeof( btces_bt_addr_struct ) ) == 0 ) ? TRUE : FALSE )
 
 /** Maximum number of connections in the btces_state_data_struct:
-    7 Bluetooth ACLs plus one active Remote Name Request procedure
+    7 Bluetooth ACLs plus one active Remote Name Request procedure or one Inquiry procedure
 */
 #define MAX_CONNS (8)
 
@@ -271,7 +273,8 @@ do                                  \
 typedef enum
 {
   CONN_STATE_INVALID = 0,         /**< Connection table entry is invalid, can be due to a failed connection attempt */
-  CONN_STATE_REMOTE_NAME_REQUEST, /**< No ACL connection exists, used during Remote Name Request. */
+  CONN_STATE_INQUIRY,             /**< Inquiry procedure */
+  CONN_STATE_REMOTE_NAME_REQUEST, /**< No ACL connection exists, used during Remote Name Request */
   CONN_STATE_SETUP_INCOMING,      /**< Incoming create connection request in progress */
   CONN_STATE_SETUP_OUTGOING,      /**< Outgoing create connection request in progress */
   CONN_STATE_CONNECTED,           /**< ACL connection established */
@@ -301,6 +304,7 @@ typedef struct
   uint8                   sco_interval; /**< SCO Instance, or Tsco, in number of slots */
   uint8                   sco_window;   /**< SCO Window, in number of slots */
   uint8                   retrans_win;  /**< eSCO retransmission window, in number of slots */
+  uint8                   qpos;         /**< Queue position state */
 } btces_conn_data_struct;
 
 /** BTC-ES State Data: While BTC-ES is running, an instance of this structure
@@ -311,10 +315,10 @@ typedef struct
   btces_cb_type *report_cb_ptr;     /**< Registered callback for event reports */
   void          *user_data;         /**< Opaque data associated with callback */
   boolean       bluetooth_is_on;    /**< Stack "power" state; FALSE = Off */
+  boolean       connecting_now;     /**< TRUE: Connection procedure in progress */
   boolean       inquiry_is_active;  /**< TRUE: Inquiry procedure in progress */
   boolean       in_per_inq_mode;    /**< TRUE: In Periodic Inquiry Mode */
   boolean       paging_now;         /**< TRUE: Paging procedure in progress */
-  uint8         paging_count;       /**< Number of page procedures remaining */
   uint32        page_timer_tag;     /**< Unique number for a page timer instance */
   uint32        per_inq_timer_tag;  /**< Unique number for an inquiry timer instance */
   void          *page_timer_id;     /**< Platform-defined page timer identifier */
@@ -346,6 +350,11 @@ static btces_state_data_struct  *btces_g_state_data_ptr = NULL;
 */
 static uint16 btces_g_wlan_chan = 0x0000;
 
+/**
+    Defined a dummy Bluetooth address to create a connection table for HCI Inquiry.
+*/
+static const uint8 bt_addr_array_dummy[6] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+
 #ifdef BTCES_DEBUG
 /* Array of hex digits for debug output */
 static const unsigned char digits[] = "0123456789ABCDEF";
@@ -354,6 +363,14 @@ static const unsigned char digits[] = "0123456789ABCDEF";
 /*----------------------------------------------------------------------------
  * Static Function Declarations and Definitions
  * -------------------------------------------------------------------------*/
+
+/*==============================================================
+FUNCTION:  btces_create_inq_entry()
+==============================================================*/
+
+/** Create a connection table for Inquiry and queue it or start it. */
+
+static void btces_create_inq_entry( void );
 
 #ifdef BTCES_DEBUG
 /*==============================================================
@@ -562,10 +579,10 @@ static void btces_test_bt_on( void )
     /* Do limited initialization of State Data. All connection table entries should
        be empty. Leave the callback registration, timer IDs and timer tags alone.
      */
+    btces_g_state_data_ptr->connecting_now = FALSE;
     btces_g_state_data_ptr->inquiry_is_active = FALSE;
     btces_g_state_data_ptr->in_per_inq_mode = FALSE;
     btces_g_state_data_ptr->paging_now = FALSE;
-    btces_g_state_data_ptr->paging_count = 0;
     btces_g_state_data_ptr->page_timeout = PAGE_TIMEOUT_DEFAULT;
 
     for ( i = 0; i < MAX_CONNS; i++ )
@@ -1025,7 +1042,9 @@ static void btces_make_state_report( void )
     {
       conn_ptr = btces_g_state_data_ptr->conn_ptr_table[i];
 
-      if ( conn_ptr != NULL )
+      /* Skip entries that are in the queue and report an active entry only. */
+      if ( ( conn_ptr != NULL ) &&
+           ( conn_ptr->qpos == 0 ) )
       {
         switch ( conn_ptr->conn_state )
         {
@@ -1084,9 +1103,127 @@ static void btces_make_state_report( void )
             break;
           }
         } /* switch ( conn_ptr->conn_state )*/
-      } /* conn_ptr == NULL */
+      } /* ( conn_ptr != NULL ) && ( conn_ptr->qpos == 0 ) */
     } /* for ( i = 0; i < MAX_CONNS ; i++ ) */
   } /* !( btces_g_state_data_ptr->bluetooth_is_on ) */
+}
+
+/*==============================================================
+FUNCTION:  btces_find_next_qpos()
+==============================================================*/
+
+/** Find the queue position to push the connection table entry.
+
+  Find the largest queue position of all table entries and add one to it.
+  If no table entry is found in the queue, return the queue position with
+  the value 1 so as to be the first to be pulled off.
+
+  @return  New queue position to push the connection table entry.
+*/
+
+static uint8 btces_find_next_qpos( void )
+{
+  uint8 i;
+  uint8 max = 0;
+
+  /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+
+  BTCES_ASSERT( btces_g_state_data_ptr != NULL );
+
+  for ( i = 0; i < MAX_CONNS; i++ )
+  {
+    /* Find the largest queue position of all table entries */
+    if ( (btces_g_state_data_ptr->conn_ptr_table[i] != NULL) &&
+         (btces_g_state_data_ptr->conn_ptr_table[i]->qpos > max) )
+    {
+      max = btces_g_state_data_ptr->conn_ptr_table[i]->qpos;
+    }
+  }
+  /* Return a new queue position to push the connection table entry. */
+  return ( max + 1 );
+}
+
+/*==============================================================
+FUNCTION:  btces_dequeue_conn_entry()
+==============================================================*/
+
+/** Find the connection table entry index to pull from the queue.
+
+  Decrement the queue position of all table entries and
+  pull off the table entry if decremented queue position is zero.
+
+  @return  Connection table entry index pulled from the queue.
+           -1 if the queue is empty.
+*/
+
+static int8 btces_dequeue_conn_entry( void )
+{
+  uint8 i;
+  int8 index = -1;
+
+  /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+
+  BTCES_ASSERT( btces_g_state_data_ptr != NULL );
+
+  for ( i = 0; i < MAX_CONNS; i++ )
+  {
+    /* Decrement the queue position of all table entries */
+    if ( (btces_g_state_data_ptr->conn_ptr_table[i] != NULL) &&
+         (btces_g_state_data_ptr->conn_ptr_table[i]->qpos > 0) )
+    {
+      /* Store the index to the table entry if decremented queue position is zero. */
+      if ( --(btces_g_state_data_ptr->conn_ptr_table[i]->qpos) == 0)
+      {
+        BTCES_ASSERT( index == -1 );
+        index = i;
+      }
+    }
+  }
+  /* Return the index of next table entry in the queue, or -1 if the queue is empty. */
+  return ( index );
+}
+
+/*==============================================================
+FUNCTION:  btces_remove_conn_entry_from_queue()
+==============================================================*/
+
+/** Remove the given connection table entry from the queue.
+
+  Decrement the queue position of the table entries whose queue
+  position is larger than the queue position of the given entry.
+*/
+
+static void btces_remove_conn_entry_from_queue
+(
+  uint8 entry_index
+)
+{
+  uint8 i;
+  uint8 entry_qpos;
+
+  /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+
+  BTCES_ASSERT( btces_g_state_data_ptr != NULL );
+  BTCES_ASSERT( btces_g_state_data_ptr->conn_ptr_table[entry_index] != NULL );
+
+  entry_qpos = btces_g_state_data_ptr->conn_ptr_table[entry_index]->qpos;
+
+  BTCES_ASSERT( entry_qpos != 0 );
+
+  /* Set the entry queue position to zero for removal.*/
+  btces_g_state_data_ptr->conn_ptr_table[entry_index]->qpos = 0;
+
+  for ( i = 0; i < MAX_CONNS; i++ )
+  {
+    if ( btces_g_state_data_ptr->conn_ptr_table[i] != NULL )
+    {
+      /* Decrement the queue position if larger than the given entry queue position.*/
+      if ( btces_g_state_data_ptr->conn_ptr_table[i]->qpos > entry_qpos )
+      {
+        --(btces_g_state_data_ptr->conn_ptr_table[i]->qpos);
+      }
+    }
+  }
 }
 
 /*==============================================================
@@ -1142,72 +1279,75 @@ static void btces_close_open_events( void )
 
     if ( conn_ptr != NULL )
     {
-      /* Check if the ACL connection is streaming */
-      if ( conn_ptr->conn_state == CONN_STATE_STREAMING )
+      /* If the connection is not queued, it should be active, so end the activity and report it. */
+      if ( conn_ptr->qpos == 0 )
       {
-        /* Change the state to Connected to report Streaming Stopped */
-        conn_ptr->conn_state = CONN_STATE_CONNECTED;
-        btces_report_a2dp_chg( conn_ptr );
-
-        /* The next block will handle reporting the ACL disconnect */
-      }
-
-      switch ( conn_ptr->conn_state )
-      {
-        case CONN_STATE_SETUP_INCOMING:
-        case CONN_STATE_SETUP_OUTGOING:
+        /* Check if the ACL connection is streaming */
+        if ( conn_ptr->conn_state == CONN_STATE_STREAMING )
         {
-          /* Set the state to Invalid, so that a failure will be reported */
-          conn_ptr->conn_state = CONN_STATE_INVALID;
-          btces_report_acl_complete( conn_ptr );
-          break;
+          /* Change the state to Connected in order to report Streaming Stopped */
+          conn_ptr->conn_state = CONN_STATE_CONNECTED;
+          btces_report_a2dp_chg( conn_ptr );
+
+          /* The next block will handle reporting the ACL disconnect */
         }
 
-        case CONN_STATE_CONNECTED:
+        switch ( conn_ptr->conn_state )
         {
-          /* See if there is a SCO connection for this ACL */
-          switch ( conn_ptr->sco_state )
+          case CONN_STATE_SETUP_INCOMING:
+          case CONN_STATE_SETUP_OUTGOING:
           {
-            case SCO_STATE_SETUP:
+            /* Set the state to Invalid, so that a failure will be reported */
+            conn_ptr->conn_state = CONN_STATE_INVALID;
+            btces_report_acl_complete( conn_ptr );
+            break;
+          }
+
+          case CONN_STATE_CONNECTED:
+          {
+            /* See if there is a SCO connection for this ACL */
+            switch ( conn_ptr->sco_state )
             {
-              /* Set the state to Invalid, so that a failure will be reported */
-              conn_ptr->sco_state = SCO_STATE_INVALID;
-              btces_report_sync_complete( conn_ptr );
-              break;
-            }
+              case SCO_STATE_SETUP:
+              {
+                /* Set the state to Invalid, so that a failure will be reported */
+                conn_ptr->sco_state = SCO_STATE_INVALID;
+                btces_report_sync_complete( conn_ptr );
+                break;
+              }
 
-            case SCO_STATE_SCO:
-            case SCO_STATE_ESCO:
-            {
-              /* Report disconnect for this SCO or eSCO connection */
-              btces_report_disconnect( conn_ptr->sco_handle );
-              break;
-            }
+              case SCO_STATE_SCO:
+              case SCO_STATE_ESCO:
+              {
+                /* Report disconnect for this SCO or eSCO connection */
+                btces_report_disconnect( conn_ptr->sco_handle );
+                break;
+              }
 
-            /* Ignore other possible SCO states */
-            default:
-            {
-              break;
-            }
-          } /* switch ( conn_ptr->sco_state ) */
+              /* Ignore other possible SCO states */
+              default:
+              {
+                break;
+              }
+            } /* switch ( conn_ptr->sco_state ) */
 
-          /* Now report Disconnect for this ACL connection */
-          btces_report_disconnect( conn_ptr->acl_handle );
-          break;
-        }
+            /* Now report Disconnect for this ACL connection */
+            btces_report_disconnect( conn_ptr->acl_handle );
+            break;
+          }
 
-        /* Ignore other possible connection states */
-        default:
-        {
-          break;
-        }
-      } /* switch ( conn_ptr->conn_state ) */
-
+          /* Ignore other possible connection states */
+          default:
+          {
+            break;
+          }
+        } /* switch ( conn_ptr->conn_state ) */
+      }
       /* Done with this connection entry, so free it */
       btces_pfal_free( conn_ptr );
       btces_g_state_data_ptr->conn_ptr_table[i] = NULL;
 
-    } /* conn_ptr == NULL */
+    } /* conn_ptr != NULL */
   } /* end for */
 }
 
@@ -1271,7 +1411,7 @@ static btces_conn_data_struct * btces_find_conn_from_addr
 FUNCTION:  btces_close_page_activity()
 ==============================================================*/
 
-/** Close out a Paging event pair if one is active. */
+/** Close out a Paging activity if one is active. */
 
 static void btces_close_page_activity
 (
@@ -1290,20 +1430,50 @@ static void btces_close_page_activity
        does not need to be avoided in this case, only when a new tag is made when
        a new timer is started.
     */
-
     btces_g_state_data_ptr->page_timer_tag++;
 
-    /* Cancel the timer unless paging stopped due to a timeout */
+    /* Cancel the timer unless paging stopped due to a timeout. */
     if ( !time_out )
     {
       btces_pfal_stop_timer( btces_g_state_data_ptr->page_timer_id );
     }
-
-    BTCES_ASSERT(btces_g_state_data_ptr->paging_count > 0);
-
-    btces_g_state_data_ptr->paging_count--;
-
     btces_report_paging();
+  }
+}
+
+/*==============================================================
+FUNCTION:  btces_close_conn_activity()
+==============================================================*/
+
+/** Close out a Connection activity. */
+
+static void btces_close_conn_activity( void )
+{
+  /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+
+  BTCES_ASSERT( btces_g_state_data_ptr != NULL );
+
+  btces_g_state_data_ptr->connecting_now = FALSE;
+}
+
+/*==============================================================
+FUNCTION:  btces_close_inq_activity()
+==============================================================*/
+
+/** Close out an Inquiry activity if one is active. */
+
+static void btces_close_inq_activity( void )
+{
+  /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+
+  BTCES_ASSERT( btces_g_state_data_ptr != NULL );
+
+  /* If an inquiry was in progress, stop it and report that event. */
+  if ( btces_g_state_data_ptr->inquiry_is_active )
+  {
+    /* Update state data and report the event */
+    btces_g_state_data_ptr->inquiry_is_active = FALSE;
+    btces_report_inquiry();
   }
 }
 
@@ -1318,7 +1488,7 @@ static void btces_page_timeout_cb
   void *user_data     /**< [in]: Opaque data associated with the timer */
 )
 {
-  BTCES_STATUS  ret_val;
+  BTCES_STATUS ret_val;
 
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
   /* Make sure BTC-ES is running and grab the Token if so */
@@ -1356,7 +1526,7 @@ static void btces_per_inq_timeout_cb
   void *user_data     /**< [in]: Opaque data associated with the timer */
 )
 {
-  BTCES_STATUS  ret_val;
+  BTCES_STATUS ret_val;
 
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
   /* Make sure BTC-ES is running and grab the Token if so */
@@ -1374,9 +1544,8 @@ static void btces_per_inq_timeout_cb
 
       if ( !(btces_g_state_data_ptr->inquiry_is_active) )
       {
-        /* Update state data and report the event */
-        btces_g_state_data_ptr->inquiry_is_active = TRUE;
-        btces_report_inquiry();
+        /* Create a table entry for Inquiry and queue it, or start it and report it. */
+        btces_create_inq_entry();
       }
       else
       {
@@ -1459,22 +1628,67 @@ static void btces_start_per_inq_timer( void )
 }
 
 /*==============================================================
-FUNCTION:  btces_next_page_activity()
+FUNCTION:  btces_next_queue_activity()
 ==============================================================*/
 
-/** Begin the next Paging event pair if one is pending. */
+/** Begin the next Inquiry/Paging/Connection activity if one is pending in the queue and there is no currently active activity. */
 
-static void btces_next_page_activity( void )
+static void btces_next_queue_activity( void )
 {
-  /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
-
   BTCES_ASSERT( btces_g_state_data_ptr != NULL );
 
-  if ( btces_g_state_data_ptr->paging_count > 0 )
+  if ( (btces_g_state_data_ptr->paging_now) ||
+       (btces_g_state_data_ptr->connecting_now) ||
+       (btces_g_state_data_ptr->inquiry_is_active) )
   {
-    btces_start_page_timer();
-    btces_g_state_data_ptr->paging_now = TRUE;
-    btces_report_paging();
+    return;
+  }
+
+  /* Dequeue the next event pair from the queue (FIFO) */
+  int8 i = btces_dequeue_conn_entry();
+
+  /* Return if there is no connection table entry in the queue. */
+  if ( i == -1 )
+  {
+    return;
+  }
+  btces_conn_data_struct * next_conn_ptr = btces_g_state_data_ptr->conn_ptr_table[(uint8)i];
+
+  switch ( next_conn_ptr->conn_state )
+  {
+    case CONN_STATE_REMOTE_NAME_REQUEST:
+    {
+      btces_start_page_timer();
+      btces_g_state_data_ptr->paging_now = TRUE;
+      btces_report_paging();
+      break;
+    }
+
+    case CONN_STATE_SETUP_OUTGOING:
+    {
+      btces_g_state_data_ptr->connecting_now = TRUE;
+
+      /* Report the ACL event. */
+      btces_report_acl_create( next_conn_ptr );
+
+      btces_start_page_timer();
+      btces_g_state_data_ptr->paging_now = TRUE;
+      btces_report_paging();
+      break;
+    }
+
+    case CONN_STATE_INQUIRY:
+    {
+      btces_g_state_data_ptr->inquiry_is_active = TRUE;
+      btces_report_inquiry();
+      break;
+    }
+
+    default:
+    {
+      BTCES_MSG_HIGH( "BTC-ES: Unexpected connection state: %d" BTCES_EOL, next_conn_ptr->conn_state );
+      break;
+    }
   }
 }
 
@@ -1528,6 +1742,7 @@ static btces_conn_data_struct * btces_create_conn_entry
       conn_ptr->sco_interval = 0;
       conn_ptr->sco_window = 0;
       conn_ptr->retrans_win = 0;
+      conn_ptr->qpos = 0;
       */
       std_memset( conn_ptr, 0, sizeof( *conn_ptr ) );
 
@@ -1563,7 +1778,7 @@ FUNCTION:  btces_find_conn_from_handle()
     @return Pointer to the connection table entry if found or NULL.
 */
 
-static btces_conn_data_struct *  btces_find_conn_from_handle
+static btces_conn_data_struct * btces_find_conn_from_handle
 (
   uint16  handle,     /**< [in]: Connection Handle (ACL or Sync) */
   uint8   *index_ptr  /**< [out]: Pointer to matching table index (optional) */
@@ -1623,22 +1838,47 @@ static btces_conn_data_struct *  btces_find_conn_from_handle
 }
 
 /*==============================================================
-FUNCTION:  btces_new_page_activity()
+FUNCTION:  btces_create_inq_entry()
 ==============================================================*/
 
-/** Add on a new paging activity; start a timer and report it if this is the first one. */
+/** Create a connection table entry for Inquiry and queue it or start it. */
 
-static void btces_new_page_activity( void )
+static void btces_create_inq_entry( void )
 {
-  /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  btces_conn_data_struct  *conn_ptr;
 
-  BTCES_ASSERT( btces_g_state_data_ptr != NULL );
+  /* There should not be a connection entry with the dummy BT address */
+  conn_ptr = btces_find_conn_from_addr( (btces_bt_addr_struct *)bt_addr_array_dummy,
+                                        NULL );
 
-  /* Add a new paging activity; if this is the first one, there is more to do. */
-  if ( btces_g_state_data_ptr->paging_count++ == 0 )
+  /* If there is NOT an associated connection */
+  if ( conn_ptr == NULL )
   {
-    /* This starts a paging activity and reports it */
-    btces_next_page_activity();
+    /* Allocate a new connection with the dummy BT address */
+    conn_ptr = btces_create_conn_entry( (btces_bt_addr_struct *)bt_addr_array_dummy );
+
+    /* Not getting an allocation is a serious error, but check anyway */
+    if ( conn_ptr != NULL )
+    {
+      /* This connection table entry is for HCI Inquiry */
+      conn_ptr->conn_state = CONN_STATE_INQUIRY;
+
+      /* Add a new activity to the queue */
+      conn_ptr->qpos = btces_find_next_qpos();
+
+      BTCES_MSG_LOW( "BTC-ES: CONN_STATE_INQUIRY is inserted into the queue! qpos = %d " BTCES_EOL, conn_ptr->qpos );
+
+      /* if this is the first activity, start it right away if idle. */
+      if ( conn_ptr->qpos == 1 )
+      {
+        /* Start an activity if idle and report it. */
+        btces_next_queue_activity();
+      }
+    }
+  }
+  else
+  {
+    BTCES_MSG_HIGH( "BTC-ES: Some type of Inquiry already in progress!" BTCES_EOL );
   }
 }
 
@@ -1685,10 +1925,10 @@ BTCES_STATUS btces_init( void )
         /*
           temp_state_data_ptr->bluetooth_is_on = FALSE;
           temp_state_data_ptr->report_cb_ptr = NULL;
+          temp_state_data_ptr->connecting_now = FALSE;
           temp_state_data_ptr->inquiry_is_active = FALSE;
           temp_state_data_ptr->in_per_inq_mode = FALSE;
           temp_state_data_ptr->paging_now = FALSE;
-          temp_state_data_ptr->paging_count = 0;
           temp_state_data_ptr->page_timer_tag = 0;
           temp_state_data_ptr->per_inq_timer_tag = 0;
           temp_state_data_ptr->page_timer_id = (void *)0;
@@ -2085,6 +2325,7 @@ void btces_svc_hci_command_in
   uint16                  hci_handle;
   uint16                  time_slots;
   uint8                   hci_command_param_len;
+  uint8                   i;
   uint8                   bt_addr_array[6];
 
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
@@ -2124,9 +2365,8 @@ void btces_svc_hci_command_in
           if ( !(btces_g_state_data_ptr->inquiry_is_active) &&
                !(btces_g_state_data_ptr->in_per_inq_mode) )
           {
-            /* Update state data and report the event */
-            btces_g_state_data_ptr->inquiry_is_active = TRUE;
-            btces_report_inquiry();
+            /* Create a connection for Inquiry */
+            btces_create_inq_entry();
           }
           else
           {
@@ -2142,23 +2382,43 @@ void btces_svc_hci_command_in
 
           /* There are no additional length checks required for this command */
 
-          if ( btces_g_state_data_ptr->inquiry_is_active )
+          /* Find the connection entry with the dummy BT address for Inquiry */
+          conn_ptr = btces_find_conn_from_addr( (btces_bt_addr_struct *)bt_addr_array_dummy,
+                                                &i );
+
+          /* If there is a connection entry with the dummy BT address for the Inquiry connection status */
+          if ( conn_ptr != NULL )
           {
-            /* Update state data and report the event */
-            btces_g_state_data_ptr->inquiry_is_active = FALSE;
-            btces_report_inquiry();
+            BTCES_ASSERT( conn_ptr->conn_state == CONN_STATE_INQUIRY );
 
-            if ( (btces_g_state_data_ptr->in_per_inq_mode) )
+            /* If the inquiry is queued, it cannot be active, so just remove it. */
+            if ( conn_ptr->qpos > 0 )
             {
-              BTCES_MSG_HIGH( "BTC-ES: Command unexpected in periodic inquiry mode!" BTCES_EOL );
-
-              /* HCI_Inquiry_Cancel is only expected to be used with HCI_Inquiry;
-                 however, the BT controller will end an inquiry even if it is in
-                 Periodic Inquiry Mode. So we must start the Periodic Inquiry timer
-                 anyway, as there will not be an Inquiry Complete event in this case.
-              */
-              btces_start_per_inq_timer();
+              btces_remove_conn_entry_from_queue( i );
             }
+            else if ( btces_g_state_data_ptr->inquiry_is_active )
+            {
+              /* End the inquiry activity and report it. */
+              btces_close_inq_activity();
+
+              /* If in periodic inquiry mode, set time to when the next inquiry may start */
+              if ( btces_g_state_data_ptr->in_per_inq_mode )
+              {
+                BTCES_MSG_HIGH( "BTC-ES: Command unexpected in periodic inquiry mode!" BTCES_EOL );
+
+                /* HCI_Inquiry_Cancel is only expected to be used with HCI_Inquiry;
+                   however, the BT controller will end an inquiry even if it is in
+                   Periodic Inquiry Mode. So we must start the Periodic Inquiry timer
+                   anyway, as there will not be an Inquiry Complete event in this case.
+                */
+                btces_start_per_inq_timer();
+              }
+              /* Start the next activity sequence if idle. */
+              btces_next_queue_activity();
+            }
+            /* Done with this connection entry, so free it */
+            btces_pfal_free( conn_ptr );
+            btces_g_state_data_ptr->conn_ptr_table[i] = NULL;
           }
           break;
         } /* End HCI_Inquiry_Cancel command */
@@ -2185,18 +2445,24 @@ void btces_svc_hci_command_in
 
             BTCES_MSG_LOW( "BTC-ES: Periodic Inquiry time: %d" BTCES_EOL, btces_g_state_data_ptr->per_inq_timeout );
 
-            /* The first periodic inquiry starts now */
-            if ( !(btces_g_state_data_ptr->inquiry_is_active) &&
-                 !(btces_g_state_data_ptr->in_per_inq_mode) )
+            if ( !(btces_g_state_data_ptr->in_per_inq_mode) )
             {
-              /* Update state data and report the event */
+              /* Update state data for Periodic Inquiry mode */
               btces_g_state_data_ptr->in_per_inq_mode = TRUE;
-              btces_g_state_data_ptr->inquiry_is_active = TRUE;
-              btces_report_inquiry();
+
+              if ( !(btces_g_state_data_ptr->inquiry_is_active) )
+              {
+                /* Create a connection for Inquiry */
+                btces_create_inq_entry();
+              }
+              else
+              {
+                BTCES_MSG_HIGH( "BTC-ES: Some type of Inquiry already in progress!" BTCES_EOL );
+              }
             }
             else
             {
-              BTCES_MSG_HIGH( "BTC-ES: Some type of Inquiry already in progress!" BTCES_EOL );
+              BTCES_MSG_HIGH( "BTC-ES: Already in Periodic Inquiry mode!" BTCES_EOL );
             }
           }
           break;
@@ -2213,12 +2479,33 @@ void btces_svc_hci_command_in
           {
             btces_g_state_data_ptr->in_per_inq_mode = FALSE;
 
-            /* If an inquiry was active, end it */
-            if ( btces_g_state_data_ptr->inquiry_is_active )
+            /* Find the connection entry with the dummy BT address for Inquiry */
+            conn_ptr = btces_find_conn_from_addr( (btces_bt_addr_struct *)bt_addr_array_dummy,
+                                                  &i );
+
+            /* If there is a connection entry for Inquiry */
+            if ( conn_ptr != NULL )
             {
-              /* Update state data and report the event */
-              btces_g_state_data_ptr->inquiry_is_active = FALSE;
-              btces_report_inquiry();
+              BTCES_ASSERT( conn_ptr->conn_state == CONN_STATE_INQUIRY );
+
+              /* If the Inquiry is queued, it cannot be active, so just remove it. */
+              if ( conn_ptr->qpos > 0 )
+              {
+                btces_remove_conn_entry_from_queue( i );
+              }
+              else
+              {
+                /* The inquiry must be active, so end it and report it */
+                BTCES_ASSERT( btces_g_state_data_ptr->inquiry_is_active );
+
+                btces_close_inq_activity();
+
+                /* Start the next activity sequence if idle. */
+                btces_next_queue_activity();
+              }
+              /* In either case, done with this connection entry, so free it */
+              btces_pfal_free( conn_ptr );
+              btces_g_state_data_ptr->conn_ptr_table[i] = NULL;
             }
             else
             {
@@ -2266,11 +2553,17 @@ void btces_svc_hci_command_in
                 /* The connection request originated from the Host device */
                 conn_ptr->conn_state = CONN_STATE_SETUP_OUTGOING;
 
-                /* Report the event */
-                btces_report_acl_create( conn_ptr );
+                /* Add a new activity to the queue */
+                conn_ptr->qpos = btces_find_next_qpos();
 
-                /* Add a new page activity */
-                btces_new_page_activity();
+                BTCES_MSG_LOW( "BTC-ES: CONN_STATE_SETUP_OUTGOING is inserted into the queue! qpos = %d " BTCES_EOL, conn_ptr->qpos );
+
+                /* if this is the first activity, start it right away if idle. */
+                if ( conn_ptr->qpos == 1 )
+                {
+                  /* Start an activity if idle and report it. */
+                  btces_next_queue_activity();
+                }
               }
             }
             else
@@ -2355,8 +2648,17 @@ void btces_svc_hci_command_in
                 /* This connection is only for a Remote Name Request */
                 conn_ptr->conn_state = CONN_STATE_REMOTE_NAME_REQUEST;
 
-                /* Add a new page activity */
-                btces_new_page_activity();
+                /* Add a new activity to the queue */
+                conn_ptr->qpos = btces_find_next_qpos();
+
+                BTCES_MSG_LOW( "BTC-ES: CONN_STATE_REMOTE_NAME_REQUEST is inserted into the queue! qpos = %d " BTCES_EOL, conn_ptr->qpos );
+
+                /* if this is the first activity, start it right away if idle. */
+                if ( conn_ptr->qpos == 1 )
+                {
+                  /* Start an activity if idle and report it. */
+                  btces_next_queue_activity();
+                }
               }
             } /* Else, there is an ACL connection and paging is not needed */
           } /* End if there are enough bytes in the command */
@@ -2411,9 +2713,8 @@ void btces_svc_hci_command_in
              - Inquiry, Peridoic Inquiry and Paging flags are FALSE from btces_close_open_events()
              - The connection table is empty from btces_close_open_events()
 
-             So that leaves the Paging Count and Page Timeout.
+             So that leaves the Page Timeout.
           */
-          btces_g_state_data_ptr->paging_count = 0;
 
           /* Set the Page Timeout value back to its default */
           btces_g_state_data_ptr->page_timeout = PAGE_TIMEOUT_DEFAULT;
@@ -2550,17 +2851,36 @@ void btces_svc_hci_event_in
 
           /* There are no additional length checks required for this event */
 
-          /* If inquiry was in progress, stop it and report that event */
-          if ( btces_g_state_data_ptr->inquiry_is_active )
-          {
-            btces_g_state_data_ptr->inquiry_is_active = FALSE;
-            btces_report_inquiry();
-          }
+          /* Find the connection entry with the dummy BT address for Inquiry */
+          conn_ptr = btces_find_conn_from_addr( (btces_bt_addr_struct *)bt_addr_array_dummy,
+                                                &i );
 
-          /* If in periodic inquiry mode, set time to when the next inquiry may start */
-          if ( btces_g_state_data_ptr->in_per_inq_mode )
+          /* If there is a connection entry with the dummy BT address for the Inquiry connection status */
+          if ( conn_ptr != NULL )
           {
-            btces_start_per_inq_timer();
+            BTCES_ASSERT( conn_ptr->conn_state == CONN_STATE_INQUIRY );
+
+            /* If the connection is queued, it cannot be active, so just remove it. */
+            if ( conn_ptr->qpos > 0 )
+            {
+              btces_remove_conn_entry_from_queue( i );
+            }
+            else if ( btces_g_state_data_ptr->inquiry_is_active )
+            {
+              /* End the inquiry activity and report it. */
+              btces_close_inq_activity();
+
+              /* If in periodic inquiry mode, set time to when the next inquiry may start */
+              if ( btces_g_state_data_ptr->in_per_inq_mode )
+              {
+                btces_start_per_inq_timer();
+              }
+              /* Start the next activity sequence if idle. */
+              btces_next_queue_activity();
+            }
+            /* Done with this connection entry, so free it */
+            btces_pfal_free( conn_ptr );
+            btces_g_state_data_ptr->conn_ptr_table[i] = NULL;
           }
           break;
         } /* case HCI_EVENT_INQUIRY_COMP: */
@@ -2590,9 +2910,8 @@ void btces_svc_hci_event_in
               link_type = btces_byte_to_link( hci_event_buffer_ptr[HCI_EVENT_CONNECT_COMP_LINK_TYPE_OFST] );
               if ( link_type == BTCES_LINK_TYPE_ACL )
               {
-                /* Only take action if the ACL was being set up */
-                if ( ( conn_ptr->conn_state == CONN_STATE_SETUP_INCOMING ) ||
-                     ( conn_ptr->conn_state == CONN_STATE_SETUP_OUTGOING ) )
+                /* Take this action if an incoming ACL was being set up */
+                if ( conn_ptr->conn_state == CONN_STATE_SETUP_INCOMING )
                 {
                   /* If the connection set-up failed */
                   if ( hci_event_buffer_ptr[HCI_EVENT_CONNECT_COMP_STATUS_OFST] !=
@@ -2606,21 +2925,56 @@ void btces_svc_hci_event_in
                     conn_ptr->acl_mode = BTCES_MODE_TYPE_ACTIVE;
                     conn_ptr->acl_handle = GET_HCI_UINT16(hci_event_buffer_ptr+HCI_EVENT_CONNECT_COMP_HANDLE_OFST);
                   }
-
-                  /* End possible paging activity (no timeout) and report that first */
-                  btces_close_page_activity( FALSE );
-
-                  /* Then report the ACL connection complete */
-                  btces_report_acl_complete(conn_ptr);
-
-                  /* Then start the next paging sequence, if any */
-                  btces_next_page_activity();
+                  /* Report the ACL connection complete. */
+                  btces_report_acl_complete( conn_ptr );
 
                   /* If the connection set-up failed, now free the connection table entry */
                   if ( conn_ptr->conn_state == CONN_STATE_INVALID )
                   {
                     btces_pfal_free( conn_ptr );
                     btces_g_state_data_ptr->conn_ptr_table[i] = NULL;
+                  }
+                }
+                /* Take this action if an outgoing ACL was being set up */
+                else if ( conn_ptr->conn_state == CONN_STATE_SETUP_OUTGOING )
+                {
+                  /* If the connection is queued, it cannot be active, so just remove it. */
+                  if ( conn_ptr->qpos > 0 )
+                  {
+                    btces_remove_conn_entry_from_queue( i );
+                  }
+                  else
+                  {
+                    /* If the connection set-up failed */
+                    if ( hci_event_buffer_ptr[HCI_EVENT_CONNECT_COMP_STATUS_OFST] !=
+                         HCI_EVENT_STATUS_SUCCESS )
+                    {
+                      conn_ptr->conn_state = CONN_STATE_INVALID;
+                    }
+                    else /* Connection set-up was successful */
+                    {
+                      conn_ptr->conn_state = CONN_STATE_CONNECTED;
+                      conn_ptr->acl_mode = BTCES_MODE_TYPE_ACTIVE;
+                      conn_ptr->acl_handle = GET_HCI_UINT16(hci_event_buffer_ptr+HCI_EVENT_CONNECT_COMP_HANDLE_OFST);
+                    }
+                    /* End possible page activity (no timeout) and report it. */
+                    btces_close_page_activity( FALSE );
+
+                    /* Since connection setup was in progress, close it. */
+                    btces_close_conn_activity();
+
+                    /* Then report the ACL connection complete. */
+                    btces_report_acl_complete( conn_ptr );
+
+                    /* Start the next activity sequence if idle. */
+                    btces_next_queue_activity();
+
+                    /* If the connection set-up failed, now free the connection table entry */
+                    if ( conn_ptr->conn_state == CONN_STATE_INVALID )
+                    {
+                      btces_pfal_free( conn_ptr );
+                      btces_g_state_data_ptr->conn_ptr_table[i] = NULL;
+                    }
                   }
                 }
               }
@@ -2695,7 +3049,7 @@ void btces_svc_hci_event_in
                   /* The connection request originated from the remote device */
                   conn_ptr->conn_state = CONN_STATE_SETUP_INCOMING;
 
-                  /* Report the event */
+                  /* Report the ACL event. */
                   btces_report_acl_create( conn_ptr );
                 }
               }
@@ -2830,36 +3184,23 @@ void btces_svc_hci_event_in
               /* If the connection entry was made just for the name request */
               if ( conn_ptr->conn_state == CONN_STATE_REMOTE_NAME_REQUEST )
               {
-                /* We are done with the connection entry */
-                btces_pfal_free( conn_ptr );
-                btces_g_state_data_ptr->conn_ptr_table[i] = NULL;
-
-                /* It may be there is another serialized paging activity that
-                   the SoC would begin at this point. Since there is no intervening
-                   event to announce here as with serialized ACL connections, there
-                   is no need to report a page stop event immediately followed by a
-                   page start event. The following logic detects this case and just
-                   stops the current timer and starts a new timer for the next
-                   activity. Else, the other helper routines are used to announce
-                   a stop or start separately (at most a stop or a start will occur,
-                   but not both).
-                */
-
-                if ( ( btces_g_state_data_ptr->paging_now ) &&
-                     ( btces_g_state_data_ptr->paging_count > 1 ) )
+                /* If the connection is queued, it cannot be active, so just remove it. */
+                if ( conn_ptr->qpos > 0 )
                 {
-                  btces_pfal_stop_timer( btces_g_state_data_ptr->page_timer_id );
-                  btces_g_state_data_ptr->paging_count--;
-                  btces_start_page_timer();
+                  btces_remove_conn_entry_from_queue( i );
                 }
-                else
+
+                else if ( btces_g_state_data_ptr->paging_now )
                 {
-                  /* Close a page activity (no timeout) if one is still active */
+                  /* End the current page activity (no timeout) and report it. */
                   btces_close_page_activity( FALSE );
 
-                  /* Then start the next paging sequence, if any */
-                  btces_next_page_activity();
+                  /* Start the next activity sequence if idle. */
+                  btces_next_queue_activity();
                 }
+                /* Done with this connection entry, so free it */
+                btces_pfal_free( conn_ptr );
+                btces_g_state_data_ptr->conn_ptr_table[i] = NULL;
               } /* End if this is a Remote Name Request connection entry */
             } /* End if conn_ptr != NULL */
           } /* End if there are enough bytes in the event */
@@ -2917,18 +3258,22 @@ void btces_svc_hci_event_in
             GET_HCI_BT_ADDR( bt_addr_array, hci_event_buffer_ptr+HCI_EVENT_ROLE_CHANGE_BT_ADDR_OFST );
 
             /* Find the associated connection entry from the event's BT Addr */
-            conn_ptr = btces_find_conn_from_addr( (btces_bt_addr_struct *)
-                                                  bt_addr_array,
-                                                  NULL );
+            conn_ptr = btces_find_conn_from_addr( (btces_bt_addr_struct *)bt_addr_array,
+                                                  &i );
 
             /* If there is an associated connection */
             if ( conn_ptr != NULL )
             {
-              /* If the ACL connection is being set up */
-              if ( ( conn_ptr->conn_state == CONN_STATE_SETUP_INCOMING ) ||
-                   ( conn_ptr->conn_state == CONN_STATE_SETUP_OUTGOING ) )
+              /* If an outgoing ACL connection is being set up */
+              if ( conn_ptr->conn_state == CONN_STATE_SETUP_OUTGOING )
               {
-                /* Then getting this event means any associated paging is over (no timeout) */
+                /* If the connection is queued, it cannot be active, so just remove it. */
+                if ( conn_ptr->qpos > 0 )
+                {
+                  BTCES_MSG_HIGH( "BTC-ES: Role Change HCI Event: Bad connection entry!" BTCES_EOL );
+                  btces_remove_conn_entry_from_queue( i );
+                }
+                /* End possible page activity (no timeout) and report it. */
                 btces_close_page_activity( FALSE );
               }
             } /* End if conn_ptr != NULL */
@@ -3000,16 +3345,21 @@ void btces_svc_hci_event_in
 
             /* Find the associated connection entry from the event's BT Addr */
             conn_ptr = btces_find_conn_from_addr( (btces_bt_addr_struct *)bt_addr_array,
-                                                  NULL );
+                                                  &i );
 
             /* If there is an associated connection */
             if ( conn_ptr != NULL )
             {
-              /* If the ACL connection is being set up */
-              if ( ( conn_ptr->conn_state == CONN_STATE_SETUP_INCOMING ) ||
-                   ( conn_ptr->conn_state == CONN_STATE_SETUP_OUTGOING ) )
+              /* If an outgoing ACL connection is being set up */
+              if ( conn_ptr->conn_state == CONN_STATE_SETUP_OUTGOING )
               {
-                /* Then getting this event means any associated paging is over (no timeout) */
+                /* If the connection is queued, it cannot be active, so just remove it. */
+                if ( conn_ptr->qpos > 0 )
+                {
+                  BTCES_MSG_HIGH( "BTC-ES: PIN Code or Link Key Request HCI Event: Bad connection entry!" BTCES_EOL );
+                  btces_remove_conn_entry_from_queue( i );
+                }
+                /* End possible page activity (no timeout) and report it. */
                 btces_close_page_activity( FALSE );
               }
             } /* End if conn_ptr != NULL */
@@ -3139,5 +3489,4 @@ void btces_svc_hci_event_in
   } /* ret_val == BTCES_OK: Is BTC-ES running ?*/
 } /* End of btces_svc_hci_event_in() */
 
-/* End of btces.c */
-
+/* End of btces_api.cpp */

@@ -50,6 +50,7 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
   when        who  what, where, why
   ----------  ---  -----------------------------------------------------------
+  2010-04-15  tam  Correct WLAN channel mask passed to BTC-ES
   2010-03-03   pj  Initial Open Source version
 
 ===========================================================================*/
@@ -573,10 +574,10 @@ eBtcStatus process_message(int fd, tBtcSvcHandle *pBtcSvcHandle)
             BTC_INFO( "BTC-SVC: STA associated to an AP!\n");
             /* Make sure we are registered with BTC-ES */
             if(!register_btc(pBtcSvcHandle)) {
-               /* Communicate the WLAN channel number to BTC-ES */
+               /* Communicate the WLAN channel mask to BTC-ES */
                assocData =  (tWlanAssocData *)((char*)msgHdr + sizeof(tAniMsgHdr));
                BTC_INFO( "BTC-SVC: WLAN channel is %d\n", assocData->channel);
-               pBtcSvcHandle->btcEsFuncs.wlan_chan_func(1 << (assocData->channel));
+               pBtcSvcHandle->btcEsFuncs.wlan_chan_func(1 << (assocData->channel-1));
             }
             else
             {
@@ -589,7 +590,7 @@ eBtcStatus process_message(int fd, tBtcSvcHandle *pBtcSvcHandle)
             BTC_INFO( "BTC-SVC: STA no longer associated to an AP!\n");
             /* Make sure we are registered with BTC-ES */
             if(!register_btc(pBtcSvcHandle)) {
-               /* Communicate the WLAN channel number to BTC-ES */
+               /* Communicate the WLAN channel mask to BTC-ES (no channels) */
                pBtcSvcHandle->btcEsFuncs.wlan_chan_func(0);
             }
             else
@@ -602,11 +603,11 @@ eBtcStatus process_message(int fd, tBtcSvcHandle *pBtcSvcHandle)
             BTC_INFO( "BTC-SVC: Query Rsp rcvd from WLAN!\n");
             /* Make sure we are registered with BTC-ES */
             if(!register_btc(pBtcSvcHandle)) {
-               /* Communicate the WLAN channel number to BTC-ES */
+               /* Communicate the WLAN channel mask to BTC-ES */
                assocData =  (tWlanAssocData *)((char*)msgHdr + sizeof(tAniMsgHdr));
                BTC_INFO( "BTC-SVC: WLAN channel is %d\n", assocData->channel);
                pBtcSvcHandle->btcEsFuncs.wlan_chan_func(
-                  assocData->channel ? 1 << (assocData->channel) : 0);
+                  assocData->channel ? 1 << (assocData->channel-1) : 0);
             }
             else
             {

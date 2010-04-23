@@ -45,6 +45,8 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
   when        who  what, where, why
   ----------  ---  -----------------------------------------------------------
+  2010-04-26   pj  Fixed the incorrect queue behavior and added a flag for
+                   Remote Name Request state.
   2010-04-05   pj  Modified the BTCES design to allow Inquiries to be queued
                    with ACL Connection setup and Remote Name Request.
   2010-03-03   pj  Initial Open Source version
@@ -316,6 +318,7 @@ typedef struct
   void          *user_data;         /**< Opaque data associated with callback */
   boolean       bluetooth_is_on;    /**< Stack "power" state; FALSE = Off */
   boolean       connecting_now;     /**< TRUE: Connection procedure in progress */
+  boolean       requesting_now;     /**< TRUE: Remote name request in progress */
   boolean       inquiry_is_active;  /**< TRUE: Inquiry procedure in progress */
   boolean       in_per_inq_mode;    /**< TRUE: In Periodic Inquiry Mode */
   boolean       paging_now;         /**< TRUE: Paging procedure in progress */
@@ -580,6 +583,7 @@ static void btces_test_bt_on( void )
        be empty. Leave the callback registration, timer IDs and timer tags alone.
      */
     btces_g_state_data_ptr->connecting_now = FALSE;
+    btces_g_state_data_ptr->requesting_now = FALSE;
     btces_g_state_data_ptr->inquiry_is_active = FALSE;
     btces_g_state_data_ptr->in_per_inq_mode = FALSE;
     btces_g_state_data_ptr->paging_now = FALSE;
@@ -1457,6 +1461,21 @@ static void btces_close_conn_activity( void )
 }
 
 /*==============================================================
+FUNCTION:  btces_close_req_activity()
+==============================================================*/
+
+/** Close out a Remote Name Request activity. */
+
+static void btces_close_req_activity( void )
+{
+  /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+
+  BTCES_ASSERT( btces_g_state_data_ptr != NULL );
+
+  btces_g_state_data_ptr->requesting_now = FALSE;
+}
+
+/*==============================================================
 FUNCTION:  btces_close_inq_activity()
 ==============================================================*/
 
@@ -1637,8 +1656,8 @@ static void btces_next_queue_activity( void )
 {
   BTCES_ASSERT( btces_g_state_data_ptr != NULL );
 
-  if ( (btces_g_state_data_ptr->paging_now) ||
-       (btces_g_state_data_ptr->connecting_now) ||
+  if ( (btces_g_state_data_ptr->connecting_now) ||
+       (btces_g_state_data_ptr->requesting_now) ||
        (btces_g_state_data_ptr->inquiry_is_active) )
   {
     return;
@@ -1658,6 +1677,8 @@ static void btces_next_queue_activity( void )
   {
     case CONN_STATE_REMOTE_NAME_REQUEST:
     {
+      btces_g_state_data_ptr->requesting_now = TRUE;
+
       btces_start_page_timer();
       btces_g_state_data_ptr->paging_now = TRUE;
       btces_report_paging();
@@ -1926,6 +1947,7 @@ BTCES_STATUS btces_init( void )
           temp_state_data_ptr->bluetooth_is_on = FALSE;
           temp_state_data_ptr->report_cb_ptr = NULL;
           temp_state_data_ptr->connecting_now = FALSE;
+          temp_state_data_ptr->requesting_now = FALSE;
           temp_state_data_ptr->inquiry_is_active = FALSE;
           temp_state_data_ptr->in_per_inq_mode = FALSE;
           temp_state_data_ptr->paging_now = FALSE;
@@ -2938,43 +2960,41 @@ void btces_svc_hci_event_in
                 /* Take this action if an outgoing ACL was being set up */
                 else if ( conn_ptr->conn_state == CONN_STATE_SETUP_OUTGOING )
                 {
-                  /* If the connection is queued, it cannot be active, so just remove it. */
+                  /* The connection entry is not expected to be queued */
                   if ( conn_ptr->qpos > 0 )
                   {
+                    BTCES_MSG_HIGH( "BTC-ES: Connection Complete HCI Event: Bad connection entry!" BTCES_EOL );
                     btces_remove_conn_entry_from_queue( i );
                   }
-                  else
+                  /* If the connection set-up failed */
+                  if ( hci_event_buffer_ptr[HCI_EVENT_CONNECT_COMP_STATUS_OFST] !=
+                       HCI_EVENT_STATUS_SUCCESS )
                   {
-                    /* If the connection set-up failed */
-                    if ( hci_event_buffer_ptr[HCI_EVENT_CONNECT_COMP_STATUS_OFST] !=
-                         HCI_EVENT_STATUS_SUCCESS )
-                    {
-                      conn_ptr->conn_state = CONN_STATE_INVALID;
-                    }
-                    else /* Connection set-up was successful */
-                    {
-                      conn_ptr->conn_state = CONN_STATE_CONNECTED;
-                      conn_ptr->acl_mode = BTCES_MODE_TYPE_ACTIVE;
-                      conn_ptr->acl_handle = GET_HCI_UINT16(hci_event_buffer_ptr+HCI_EVENT_CONNECT_COMP_HANDLE_OFST);
-                    }
-                    /* End possible page activity (no timeout) and report it. */
-                    btces_close_page_activity( FALSE );
+                    conn_ptr->conn_state = CONN_STATE_INVALID;
+                  }
+                  else /* Connection set-up was successful */
+                  {
+                    conn_ptr->conn_state = CONN_STATE_CONNECTED;
+                    conn_ptr->acl_mode = BTCES_MODE_TYPE_ACTIVE;
+                    conn_ptr->acl_handle = GET_HCI_UINT16(hci_event_buffer_ptr+HCI_EVENT_CONNECT_COMP_HANDLE_OFST);
+                  }
+                  /* End possible page activity (no timeout) and report it. */
+                  btces_close_page_activity( FALSE );
 
-                    /* Since connection setup was in progress, close it. */
-                    btces_close_conn_activity();
+                  /* Since connection setup was in progress, close it. */
+                  btces_close_conn_activity();
 
-                    /* Then report the ACL connection complete. */
-                    btces_report_acl_complete( conn_ptr );
+                  /* Then report the ACL connection complete. */
+                  btces_report_acl_complete( conn_ptr );
 
-                    /* Start the next activity sequence if idle. */
-                    btces_next_queue_activity();
+                  /* Start the next activity sequence if idle. */
+                  btces_next_queue_activity();
 
-                    /* If the connection set-up failed, now free the connection table entry */
-                    if ( conn_ptr->conn_state == CONN_STATE_INVALID )
-                    {
-                      btces_pfal_free( conn_ptr );
-                      btces_g_state_data_ptr->conn_ptr_table[i] = NULL;
-                    }
+                  /* If the connection set-up failed, now free the connection table entry */
+                  if ( conn_ptr->conn_state == CONN_STATE_INVALID )
+                  {
+                    btces_pfal_free( conn_ptr );
+                    btces_g_state_data_ptr->conn_ptr_table[i] = NULL;
                   }
                 }
               }
@@ -3184,20 +3204,24 @@ void btces_svc_hci_event_in
               /* If the connection entry was made just for the name request */
               if ( conn_ptr->conn_state == CONN_STATE_REMOTE_NAME_REQUEST )
               {
-                /* If the connection is queued, it cannot be active, so just remove it. */
+                /* The connection entry is not expected to be queued */
                 if ( conn_ptr->qpos > 0 )
                 {
+                  BTCES_MSG_HIGH( "BTC-ES: Remote Name Request Complete HCI Event: Bad connection entry!" BTCES_EOL );
                   btces_remove_conn_entry_from_queue( i );
                 }
-
-                else if ( btces_g_state_data_ptr->paging_now )
+                /* If paging was in progress */
+                if ( btces_g_state_data_ptr->paging_now )
                 {
                   /* End the current page activity (no timeout) and report it. */
                   btces_close_page_activity( FALSE );
-
-                  /* Start the next activity sequence if idle. */
-                  btces_next_queue_activity();
                 }
+                /* Since remote name request was in progress, close it. */
+                btces_close_req_activity();
+
+                /* Start the next activity sequence if idle. */
+                btces_next_queue_activity();
+
                 /* Done with this connection entry, so free it */
                 btces_pfal_free( conn_ptr );
                 btces_g_state_data_ptr->conn_ptr_table[i] = NULL;

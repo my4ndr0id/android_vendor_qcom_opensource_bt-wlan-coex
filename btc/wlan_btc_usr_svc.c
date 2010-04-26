@@ -50,6 +50,7 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
   when        who  what, where, why
   ----------  ---  -----------------------------------------------------------
+  2010-04-26  tam  Make the use of recv() non-blocking to allow BTC shut down
   2010-04-15  tam  Correct WLAN channel mask passed to BTC-ES
   2010-03-03   pj  Initial Open Source version
 
@@ -257,7 +258,8 @@ static eBtcStatus process_udev_event( int fd )
     int bytes;
     struct udev_event udev_event;
 
-    while((bytes = recv(fd, msg, UEVENT_MESSAGE_LENGTH, 0)) > 0) {
+    /* Read each udev event until no more msgs pending, or until WLAN is found */
+    while((bytes = recv(fd, msg, UEVENT_MESSAGE_LENGTH, MSG_DONTWAIT)) > 0) {
 
         if(bytes > UEVENT_MESSAGE_LENGTH)
             continue;

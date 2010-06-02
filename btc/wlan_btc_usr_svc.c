@@ -50,6 +50,7 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
   when        who  what, where, why
   ----------  ---  -----------------------------------------------------------
+  2010-06-01  tam  Let WLAN driver close before checking for it again
   2010-04-26  tam  Make the use of recv() non-blocking to allow BTC shut down
   2010-04-15  tam  Correct WLAN channel mask passed to BTC-ES
   2010-03-03   pj  Initial Open Source version
@@ -72,9 +73,15 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <wlan_nlink_common.h>
 #include <wlan_btc_usr_svc.h>
 
+#include "cutils/properties.h"
+
 //Time to wait for WLAN driver to initialize.
 //FIXME This value needs to optimized further
 #define BTC_SVC_WLAN_SETTLE_TIME 1200000
+
+//Time for WLAN driver to be unloaded after getting BTC_WLAN_IF_DOWN
+#define BTC_SVC_WLAN_DOWN_SLEEP_TIME_USEC (200000)
+#define BTC_SVC_WLAN_DOWN_WAIT_TIME_SEC (4)
 
 #ifdef BTC_DEBUG
 
@@ -513,7 +520,6 @@ eBtcStatus process_message(int fd, tBtcSvcHandle *pBtcSvcHandle)
    tAniMsgHdr *msgHdr = NULL;
    tWlanAssocData *assocData = NULL;
    unsigned int len;
-   void *pBtc = NULL;
    eBtcStatus status = BTC_SUCCESS;
 
    slen = recvfrom(fd, buffer, sizeof(buffer), MSG_DONTWAIT, (struct sockaddr*)&src_addr, &addr_len);
@@ -638,12 +644,12 @@ eBtcStatus process_message(int fd, tBtcSvcHandle *pBtcSvcHandle)
 static void* thread_function(void* arg)
 {
    tBtcSvcHandle *pBtcSvcHandle = (tBtcSvcHandle*)arg;
-   int fd, len, ret;
+   int fd, len, ret, wait;
    struct sockaddr_nl src_addr, dest_addr;
    unsigned char buffer[WLAN_NL_MAX_PAYLOAD];
    struct nlmsghdr *nl_header = NULL;
    tAniMsgHdr *msgHdr = NULL;
-   void *pBtc = NULL;
+   char driver_status[PROPERTY_VALUE_MAX];
 
 check_wlan:
    // Check if WLAN device is there or not. Following function would
@@ -722,8 +728,24 @@ check_wlan:
    while (1) {
       if(__select(fd, pBtcSvcHandle) == BTC_SUCCESS) {
          if (process_message(fd, pBtcSvcHandle) == BTC_WLAN_IF_DOWN) {
-            //Implies WLAN device went down. Go back to polling for WLAN
+            //Implies WLAN device went down. Go back to polling for WLAN, but
+            //allow the driver to close, so we don't re-open the socket too soon
             close(fd);
+
+            //Wait up to 4 seconds
+            wait = 0;
+            while(wait++ < (BTC_SVC_WLAN_DOWN_WAIT_TIME_SEC * 1000000 / BTC_SVC_WLAN_DOWN_SLEEP_TIME_USEC)) {
+              if (!property_get("wlan.driver.status", driver_status, NULL)) {
+                BTC_ERR("BTC-SVC: Couldn't get driver status!\n");
+                break;
+              }
+              if (!strcmp(driver_status, "unloaded")) {
+                BTC_INFO("BTC-SVC: WLAN driver unloaded: %d", wait);
+                break;
+              }
+              BTC_INFO("BTC-SVC: Waiting: %d", wait);
+              usleep(BTC_SVC_WLAN_DOWN_SLEEP_TIME_USEC);
+            }
             goto check_wlan;
          }
          else
@@ -758,6 +780,11 @@ int btc_svc_init (btces_funcs *pBtcEsFuncs)
 
    // Allocate the BTC Svc object
    gpBtcSvc = (tBtcSvcHandle*)malloc(sizeof(tBtcSvcHandle));
+
+   if(gpBtcSvc == NULL) {
+      BTC_ERR("BTC-SVC: No memory for BTC Svc object\n");
+      return -1;
+   }
 
    // Initialize the BTC Svc object
    memset(gpBtcSvc, 0, sizeof(*gpBtcSvc));

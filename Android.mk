@@ -36,7 +36,7 @@ LOCAL_PATH:= $(call my-dir)
 include $(CLEAR_VARS)
 
 # BlueZ Includes
-BLUEZ_ROOT := $(LOCAL_PATH)/../../../external/bluetooth/bluez/include/bluetooth
+BLUEZ_ROOT := $(LOCAL_PATH)/../../../../external/bluetooth/bluez/include/bluetooth
 
 # This is used by BT Coex Shim and BTC-ES
 ifeq ($(TARGET_BUILD_TYPE),debug)
@@ -69,7 +69,7 @@ LOCAL_SRC_FILES := \
 
 # This library is for BT Coex using BlueZ stack with Qualcomm (Libra) WLAN
 LOCAL_MODULE := btwlancoex
-LOCAL_MODULE_TAGS := eng development
+LOCAL_MODULE_TAGS := eng
 
 LOCAL_PRELINK_MODULE := false
 include $(BUILD_EXECUTABLE)

@@ -53,6 +53,7 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
   when        who  what, where, why
   ----------  ---  -----------------------------------------------------------
+  2010-08-11   tm  AFH guard band is now 11 MHz on either side of WLAN channel
   2010-03-03   pj  Initial Open Source version
 
 =============================================================================*/
@@ -119,7 +120,7 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
     channels (MHz) of the WLAN frequency. This number must be 29 or less, or else
     a single WLAN channel will exclude too many Bluetooth frequencies (79-29*2-1 = BT_N_MIN)
 */
-#define BT_DC_AFH_CH_EXCLUDE  (20)  /* 20 came from other QC platforms */
+#define BT_DC_AFH_CH_EXCLUDE  (11)  /* Recommended by QCOM WLAN team */
 
 /* State values of the initial Channel Assessment mode */
 #define CA_MODE_OFF     (0x00)

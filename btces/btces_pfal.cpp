@@ -53,6 +53,7 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
   when        who  what, where, why
   ----------  ---  -----------------------------------------------------------
+  2010-09-14   tm  Correct handling of AdapterAdded/AdapterRemoved; code cleanup
   2010-08-11   tm  AFH guard band is now 11 MHz on either side of WLAN channel
   2010-03-03   pj  Initial Open Source version
 
@@ -100,8 +101,7 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define BTCES_COOKIE 0x10DECADE
 
 /* BTCES Daemon name as a string */
-#define BTCES_DAEMON_NAME "coexd"
-#define BTCES_PID_FILE "/var/run/btcesd.pid"
+#define BTCES_DAEMON_NAME "btwlancoex"
 
 /* Comment out if Channel Assessment mode is to be left alone when WLAN is active */
 #define TURN_OFF_CA_IF_WLAN
@@ -145,14 +145,8 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 /* Maximum size of default adapter string */
 #define BTCES_MAX_ADAPTER_SIZE 128
 
-/* Size of adapter id (e.g. hci0) */
-#define BTCES_ADAPTER_ID_SIZE 4
-
 /* Maximum size of an object path */
 #define BTCES_MAX_OBJ_PATH_SIZE 128
-
-/* Maximum size of dev addr string - dev_XX_XX_XX_XX_XX_XX (21 characters) */
-#define BTCES_MAX_DEV_ADDR_STR 21
 
 /* BT addr size in bytes */
 #define BTCES_BT_ADDR_SIZE 6
@@ -165,12 +159,15 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /* Macro for the bluez path */
 #define BTCES_BLUEZ_PATH "/org/bluez/"
+#define BTCES_BLUEZ_PATH_LEN 11
 
 /* Macro for the dev string */
 #define BTCES_DEV_STR "dev"
+#define BTCES_DEV_STR_LEN 3
 
 /* Macro for the hci string */
 #define BTCES_HCI_STR "hci"
+#define BTCES_HCI_STR_LEN 3
 
 /* Macro to define size of the pipe file descriptor - should always be 2 */
 #define BTCES_PIPE_FD_SIZE 2
@@ -206,8 +203,6 @@ typedef struct
 typedef enum
 {
   BTCES_PFAL_DBUS_DEFAULT_ADAPTER_INFO    = 0,
-  BTCES_PFAL_DBUS_DEFAULT_AUDIO_DEVICE    = 1,
-  BTCES_PFAL_DBUS_AUDIO_ADDRESS           = 2, /* Obj path needs to be passed in */
 
   BTCES_PFAL_DBUS_MAX_INFO
 } btces_pfal_dbus_info_enum;
@@ -369,6 +364,8 @@ static dbus_bool_t btces_pfal_dbus_add_watch_callback(DBusWatch *watch_ptr, void
 static void btces_pfal_dbus_remove_watch_callback(DBusWatch *watch_ptr, void *user_data);
 
 static void btces_pfal_dbus_toggle_watch_callback(DBusWatch *watch_ptr, void *user_data);
+
+static int btces_pfal_get_dev_id_from_path(const char *path_ptr);
 
 static BTCES_STATUS btces_pfal_hci_open(void);
 
@@ -846,15 +843,6 @@ static BTCES_STATUS btces_pfal_dbus_get_info
       rsp_type = BTCES_PFAL_DBUS_RSP_OBJ_PATH_TYPE;
       break;
 
-    case BTCES_PFAL_DBUS_DEFAULT_AUDIO_DEVICE:
-      bus_req_ptr = dbus_message_new_method_call("org.bluez",
-                                                 "/org/bluez/audio",
-                                                 "org.bluez.AudioManager",
-                                                 "DefaultDevice");
-
-      rsp_type = BTCES_PFAL_DBUS_RSP_OBJ_PATH_TYPE;
-      break;
-
     default:
       BTCES_MSG_ERROR("btces_pfal_dbus_get_info(): unsupported type!" BTCES_EOL);
   }
@@ -1022,7 +1010,7 @@ static boolean btces_pfal_dbus_get_dev_address_from_msg
     return FALSE;
   }
 
-  end_ptr += sizeof(BTCES_BLUEZ_PATH);
+  end_ptr += BTCES_BLUEZ_PATH_LEN;
 
   /* end_ptr is now past /org/bluez/ in obj_path_ptr */
 
@@ -1033,7 +1021,7 @@ static boolean btces_pfal_dbus_get_dev_address_from_msg
     return FALSE;
   }
 
-  end_ptr += sizeof(BTCES_DEV_STR);
+  end_ptr += BTCES_DEV_STR_LEN;
 
   /* end_ptr is now past "dev" in obj_path_ptr */
 
@@ -1143,7 +1131,7 @@ static BTCES_STATUS btces_pfal_process_dbus_event
   while(NULL != (msg_ptr = dbus_connection_pop_message(g_btces_pfal_data.worker_thread_info.conn_ptr)))
   {
     /* Process the message */
-    BTCES_MSG_MEDIUM("btces_pfal_process_dbus_event(): popped msg" BTCES_EOL);
+    BTCES_MSG_MEDIUM("btces_pfal_process_dbus_event(): popped msg = %s" BTCES_EOL, dbus_message_get_member(msg_ptr));
 
     for(signal_count = 0; signal_count < BTCES_MAX_DBUS_SIGNALS; signal_count++)
     {
@@ -1166,7 +1154,7 @@ static BTCES_STATUS btces_pfal_process_dbus_event
     dbus_message_unref(msg_ptr);
   }
 
-  BTCES_MSG_MEDIUM("btces_pfal_process_dbus_event(): success" BTCES_EOL);
+  BTCES_MSG_MEDIUM("btces_pfal_process_dbus_event(): done" BTCES_EOL);
   return BTCES_SUCCESS;
 }
 
@@ -1178,6 +1166,9 @@ static void btces_pfal_dbus_adapter_added_sig_handler
   DBusMessage *msg_ptr
 )
 {
+  DBusError    bus_error;
+  const char  *obj_path_ptr;
+  int          dev_id;
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
   BTCES_MSG_MEDIUM("btces_pfal_dbus: AdapterAdded" BTCES_EOL);
@@ -1187,17 +1178,42 @@ static void btces_pfal_dbus_adapter_added_sig_handler
     BTCES_MSG_MEDIUM("btces_pfal_dbus_adapter_added_sig_handler(): NULL msg!" BTCES_EOL);
   }
 
-  /* Need to setup the HCI traffic based on the new default adapter */
+  dbus_error_init(&bus_error);
 
-  /* If previous HCI socket exists, we need to clean up and restart! */
+  if (!dbus_message_get_args(msg_ptr, &bus_error,
+                             DBUS_TYPE_OBJECT_PATH, &obj_path_ptr,
+                             DBUS_TYPE_INVALID))
+  {
+    BTCES_MSG_MEDIUM("btces_pfal_dbus_adapter_added_sig_handler(): dbus_message_get_args() failed!" BTCES_EOL);
+    dbus_error_free(&bus_error);
+    return;
+  }
+
+  dbus_error_free(&bus_error);
+
+  /* Get the device ID from the added adapter's path */
+  dev_id = btces_pfal_get_dev_id_from_path(obj_path_ptr);
+
+  if(0 > dev_id)
+  {
+    BTCES_MSG_ERROR("btces_pfal_dbus_adapter_added_sig_handler(): could not get added dev_id" BTCES_EOL);
+    return;
+  }
+
+  /* If previous HCI socket exists, see if the dev_id is the same as the added adapter */
   if(0 <= g_btces_pfal_data.worker_thread_info.hci_fd)
   {
-    BTCES_MSG_ERROR("btces_pfal_dbus_adapter_added_sig_handler(): adapter added on existing HCI!" BTCES_EOL);
+    if(dev_id != btces_pfal_get_dev_id_from_path(&g_btces_pfal_data.worker_thread_info.default_adapter[0]))
+    {
+      BTCES_MSG_LOW("btces_pfal_dbus_adapter_added_sig_handler(): Added adapter differs from existing default adapter; done" BTCES_EOL);
+      return;
+    }
 
+    BTCES_MSG_ERROR("btces_pfal_dbus_adapter_added_sig_handler(): default adapter re-added, turning off HCI!" BTCES_EOL);
     (void) btces_pfal_hci_close();
   }
 
-  /* Get new adapter info (and if so, start HCI processing) */
+  /* Since an adapter was added, try to get the default adapter */
   if(TRUE == btces_pfal_dbus_get_default_adapter())
   {
     BTCES_MSG_MEDIUM("btces_pfal_dbus_adapter_added_sig_handler(): turning on HCI!" BTCES_EOL);
@@ -1228,6 +1244,9 @@ static void btces_pfal_dbus_adapter_removed_sig_handler
   DBusMessage *msg_ptr
 )
 {
+  DBusError    bus_error;
+  const char  *obj_path_ptr;
+  int          dev_id;
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
   BTCES_MSG_MEDIUM("btces_pfal_dbus(): AdapterRemoved" BTCES_EOL);
@@ -1235,6 +1254,41 @@ static void btces_pfal_dbus_adapter_removed_sig_handler
   if(NULL == msg_ptr)
   {
     BTCES_MSG_MEDIUM("btces_pfal_dbus_adapter_removed_sig_handler(): NULL msg!" BTCES_EOL);
+    return;
+  }
+
+  dbus_error_init(&bus_error);
+
+  if (!dbus_message_get_args(msg_ptr, &bus_error,
+                             DBUS_TYPE_OBJECT_PATH, &obj_path_ptr,
+                             DBUS_TYPE_INVALID))
+  {
+    BTCES_MSG_MEDIUM("btces_pfal_dbus_adapter_removed_sig_handler(): dbus_message_get_args() failed!" BTCES_EOL);
+    dbus_error_free(&bus_error);
+    return;
+  }
+
+  dbus_error_free(&bus_error);
+
+  /* Get the device ID from the removed adapter's path */
+  dev_id = btces_pfal_get_dev_id_from_path(obj_path_ptr);
+
+  if(0 > dev_id)
+  {
+    BTCES_MSG_ERROR("btces_pfal_dbus_adapter_removed_sig_handler(): could not get removed dev_id" BTCES_EOL);
+    return;
+  }
+
+  if(0 > g_btces_pfal_data.worker_thread_info.hci_fd)
+  {
+    BTCES_MSG_LOW("btces_pfal_dbus_adapter_removed_sig_handler(): Default HCI adapter not open; done" BTCES_EOL);
+    return;
+  }
+
+  if(dev_id != btces_pfal_get_dev_id_from_path(&g_btces_pfal_data.worker_thread_info.default_adapter[0]))
+  {
+    BTCES_MSG_LOW("btces_pfal_dbus_adapter_removed_sig_handler(): Default adapter not removed; done" BTCES_EOL);
+    return;
   }
 
   (void) btces_pfal_hci_close();
@@ -1423,7 +1477,7 @@ static int btces_pfal_get_dev_id_from_path
     return -1;
   }
 
-  end_ptr += sizeof(BTCES_BLUEZ_PATH);
+  end_ptr += BTCES_BLUEZ_PATH_LEN;
 
   /* end_ptr is now past /org/bluez/ */
 
@@ -1434,7 +1488,7 @@ static int btces_pfal_get_dev_id_from_path
     return -1;
   }
 
-  end_ptr += sizeof(BTCES_HCI_STR);
+  end_ptr += BTCES_HCI_STR_LEN;
 
   /* end_ptr is now past hci */
 

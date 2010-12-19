@@ -29,6 +29,8 @@
 # Build the Coex solution for BlueZ + Libra: BT Coex Shim, BTC-ES
 # But only for builds with the Libra WLAN
 
+ifneq ($(BUILD_ID), GINGERBREAD)
+
 ifeq ($(BOARD_HAVE_BLUETOOTH), true)
 ifeq ($(BOARD_HAS_QCOM_WLAN), true)
 
@@ -77,3 +79,4 @@ include $(BUILD_EXECUTABLE)
 endif # BOARD_HAS_QCOM_WLAN
 endif # BOARD_HAVE_BLUETOOTH
 
+endif # Gingerbread

@@ -1,5 +1,5 @@
 #--------------------------------------------------------------------------
-#Copyright (c) 2009-2010, Code Aurora Forum. All rights reserved.
+#Copyright (c) 2009-2011, Code Aurora Forum. All rights reserved.
 #
 #Redistribution and use in source and binary forms, with or without
 #modification, are permitted provided that the following conditions are met:
@@ -29,16 +29,19 @@
 # Build the Coex solution for BlueZ + Libra: BT Coex Shim, BTC-ES
 # But only for builds with the Libra WLAN
 
-ifneq ($(BUILD_ID), GINGERBREAD)
-
 ifeq ($(BOARD_HAVE_BLUETOOTH), true)
 ifeq ($(BOARD_HAS_QCOM_WLAN), true)
 
 LOCAL_PATH:= $(call my-dir)
 include $(CLEAR_VARS)
 
+ifeq ($(BUILD_ID), GINGERBREAD)
+# BlueZ Includes
+BLUEZ_ROOT := $(LOCAL_PATH)/../../../../external/bluetooth/bluez/lib/bluetooth
+else
 # BlueZ Includes
 BLUEZ_ROOT := $(LOCAL_PATH)/../../../../external/bluetooth/bluez/include/bluetooth
+endif #gingerbread
 
 # This is used by BT Coex Shim and BTC-ES
 ifeq ($(TARGET_BUILD_TYPE),debug)
@@ -56,12 +59,19 @@ LOCAL_C_INCLUDES += $(LOCAL_PATH)/btces
 LOCAL_C_INCLUDES += $(BLUEZ_ROOT)
 LOCAL_C_INCLUDES += $(call include-path-for, dbus)
 
+ifeq ($(BUILD_ID), GINGERBREAD)
+LOCAL_SHARED_LIBRARIES := \
+	libdbus     \
+	libbluetooth \
+	libcutils
+else
 LOCAL_STATIC_LIBRARIES := \
-        libbluez-common-static
+	libbluez-common-static
 
 LOCAL_SHARED_LIBRARIES := \
         libdbus \
         libbluetooth
+endif #gingerbread
 
 LOCAL_SRC_FILES := \
         bt_coex_shim.cpp \
@@ -78,5 +88,3 @@ include $(BUILD_EXECUTABLE)
 
 endif # BOARD_HAS_QCOM_WLAN
 endif # BOARD_HAVE_BLUETOOTH
-
-endif # Gingerbread

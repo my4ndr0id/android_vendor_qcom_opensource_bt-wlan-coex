@@ -53,6 +53,7 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
   when        who  what, where, why
   ----------  ---  -----------------------------------------------------------
+  2011-03-01   rr  Resolving compilation errors for stricter compilation rules.
   2010-02-28   rr  Added support for sending the one last event notification
                    to BTCES in the signal handler if it is missed in the
                    worker thread.
@@ -579,6 +580,17 @@ static dbus_bool_t btces_pfal_dbus_add_watch_callback
   btces_pfal_watch_info_struct   watch_info;
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
+  if(NULL == user_data || user_data)
+  {
+    BTCES_MSG_LOW("btces_pfal_dbus_add_watch_callback(): user_data currently unused" BTCES_EOL);
+  }
+
+  if(NULL == watch_ptr)
+  {
+    BTCES_MSG_LOW("btces_pfal_dbus_add_watch_callback(): watch_ptr invalid" BTCES_EOL);
+    return FALSE;
+  }
+
   /* Check whether the watch has been enabled - if so, continue */
   if(FALSE == dbus_watch_get_enabled(watch_ptr))
   {
@@ -631,10 +643,18 @@ static void btces_pfal_dbus_remove_watch_callback
 {
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
-  /* We ignore this since watch remains on for as long as BlueZ/coex are on */
+  if(NULL == user_data || user_data)
+  {
+    BTCES_MSG_LOW("btces_pfal_dbus_remove_watch_callback(): user_data currently unused" BTCES_EOL);
+  }
 
-  BTCES_MSG_HIGH("btces_pfal_dbus_remove_watch_callback(): watch disabled: %p" BTCES_EOL,
-                 (void *)watch_ptr);
+  if(NULL != watch_ptr)
+  {
+    /* We ignore this since watch remains on for as long as BlueZ/coex are on */
+
+    BTCES_MSG_HIGH("btces_pfal_dbus_remove_watch_callback(): watch disabled: %p" BTCES_EOL,
+                   (void *)watch_ptr);
+  }
 }
 
 
@@ -651,6 +671,16 @@ static void btces_pfal_dbus_toggle_watch_callback
   btces_pfal_watch_info_struct   watch_info;
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
+  if(NULL == user_data || user_data)
+  {
+    BTCES_MSG_LOW("btces_pfal_dbus_toggle_watch_callback(): user_data currently unused" BTCES_EOL);
+  }
+
+  if(NULL == watch_ptr)
+  {
+    BTCES_MSG_LOW("btces_pfal_dbus_toggle_watch_callback(): watch_ptr invalid" BTCES_EOL);
+    return;
+  }
 
   /** Check whether flags match - if watch is readable,
       continue. This assumes that to disable a previously
@@ -829,7 +859,6 @@ static BTCES_STATUS btces_pfal_dbus_get_info
   DBusError                       bus_error;
   DBusMessage                    *bus_req_ptr = NULL;
   DBusMessage                    *bus_rsp_ptr = NULL;
-  DBusMessageIter                 bus_rsp_args;
   char                           *bus_rsp_str_ptr;
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
@@ -974,7 +1003,6 @@ static boolean btces_pfal_dbus_get_dev_address_from_msg
 )
 {
   const char    *obj_path_ptr = NULL;
-  int            char_cnt;
   int            addr_cnt;
   char          *end_ptr = NULL;
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
@@ -1457,7 +1485,6 @@ static int btces_pfal_get_dev_id_from_path
 )
 {
   int dev_id = -1;
-  int char_cnt;
   char   *end_ptr = NULL;
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
@@ -2300,20 +2327,22 @@ void btces_pfal_stop_timer
 )
 {
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+  if(NULL != timer_id)
+  {
+    /**
+       For now, we ignore the stop altogether because:
+       a) it does not need to be used (there's more reliance on timer callback
+       firing)
+       b) in order to protect race conditions, we would need to introduce extra
+       protection between the stop_timer and the callback being invoked, which
+       seems superfluous given the current btces usage of timers
 
-  /**
-     For now, we ignore the stop altogether because:
-     a) it does not need to be used (there's more reliance on timer callback
-     firing)
-     b) in order to protect race conditions, we would need to introduce extra
-     protection between the stop_timer and the callback being invoked, which
-     seems superfluous given the current btces usage of timers
-
-     In other words, every timer started will invariably fire and this is okay
-     since the client for a timer is expected to handle this case anyway.
-   */
-  BTCES_MSG_LOW("btces_pfal_stop_timer: no-op on %p" BTCES_EOL,
-                timer_id);
+       In other words, every timer started will invariably fire and this is okay
+       since the client for a timer is expected to handle this case anyway.
+     */
+    BTCES_MSG_LOW("btces_pfal_stop_timer: no-op on %p" BTCES_EOL,
+                  timer_id);
+  }
 
 } /* btces_pfal_stop_timer */
 

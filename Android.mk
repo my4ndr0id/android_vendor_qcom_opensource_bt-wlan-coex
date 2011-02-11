@@ -45,6 +45,9 @@ LOCAL_SHARED_LIBRARIES := \
         libbluetooth
 endif #gingerbread
 
+#Enabling warnings to be treated as errors.
+LOCAL_CFLAGS += -Werror -Wall -Wextra
+
 LOCAL_SRC_FILES := \
         bt_coex_shim.cpp \
         btc/wlan_btc_usr_svc.c \

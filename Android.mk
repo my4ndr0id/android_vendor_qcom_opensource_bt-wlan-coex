@@ -81,7 +81,7 @@ LOCAL_SRC_FILES := \
 
 # This library is for BT Coex using BlueZ stack with Qualcomm (Libra) WLAN
 LOCAL_MODULE := btwlancoex
-LOCAL_MODULE_TAGS := eng
+LOCAL_MODULE_TAGS := optional eng
 
 LOCAL_PRELINK_MODULE := false
 include $(BUILD_EXECUTABLE)

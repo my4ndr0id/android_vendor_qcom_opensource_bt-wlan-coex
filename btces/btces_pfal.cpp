@@ -53,6 +53,9 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
   when        who  what, where, why
   ----------  ---  -----------------------------------------------------------
+  2010-02-28   rr  Added support for sending the one last event notification
+                   to BTCES in the signal handler if it is missed in the
+                   worker thread.
   2010-09-14   tm  Correct handling of AdapterAdded/AdapterRemoved; code cleanup
   2010-08-11   tm  AFH guard band is now 11 MHz on either side of WLAN channel
   2010-03-03   pj  Initial Open Source version
@@ -2456,6 +2459,9 @@ void sig_hdlr
     case SIGINT:
       /* Fall through */
     case SIGTERM:
+      BTCES_MSG_HIGH("SIGTERM/SIGINT received: one last notification to BTCES" BTCES_EOL);
+      /* One last notification to BTCES */
+      btces_svc_native_event_in(BTCES_NATIVE_EVENT_DEVICE_SWITCHED_OFF,NULL);
       BTCES_MSG_HIGH("SIGTERM/SIGINT received, shutting down btces" BTCES_EOL);
 
       /* Call the shim close function */

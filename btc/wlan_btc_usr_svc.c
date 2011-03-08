@@ -50,6 +50,8 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
   when        who  what, where, why
   ----------  ---  -----------------------------------------------------------
+  2011-03-08   rr  Ensure WLAN driver is successful loaded before sending out
+                   "Query WLAN" message.
   2010-06-01  tam  Let WLAN driver close before checking for it again
   2010-04-26  tam  Make the use of recv() non-blocking to allow BTC shut down
   2010-04-15  tam  Correct WLAN channel mask passed to BTC-ES
@@ -78,6 +80,7 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //Time to wait for WLAN driver to initialize.
 //FIXME This value needs to optimized further
 #define BTC_SVC_WLAN_SETTLE_TIME 1200000
+#define BTC_SVC_SOCKET_CREATE_DELAY (3000)
 
 //Time for WLAN driver to be unloaded after getting BTC_WLAN_IF_DOWN
 #define BTC_SVC_WLAN_DOWN_SLEEP_TIME_USEC (200000)
@@ -665,7 +668,13 @@ check_wlan:
    if(fd < 0) {
       BTC_ERR( "BTC-SVC: Cannot open Netlink socket\n");
       BTC_OS_ERR;
-      return NULL;
+      /* This Implies:
+       * - Either WLAN module failed to create socket or
+       * - Delay between the creation of netlink Socket in the WLAN or
+       * - WLAN loaded/unloaded at bootup.
+       */
+      usleep(BTC_SVC_SOCKET_CREATE_DELAY);
+      goto check_wlan;
    }
 
    //Prepare to bind the socket

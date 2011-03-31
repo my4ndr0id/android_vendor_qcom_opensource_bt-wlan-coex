@@ -7,13 +7,17 @@ ifeq ($(BOARD_HAS_QCOM_WLAN), true)
 LOCAL_PATH:= $(call my-dir)
 include $(CLEAR_VARS)
 
-ifeq ($(BUILD_ID), GINGERBREAD)
-# BlueZ Includes
-BLUEZ_ROOT := $(LOCAL_PATH)/../../../../external/bluetooth/bluez/lib/bluetooth
-else
+ifneq (, $(filter ECLAIR FROYO, $(BUILD_ID)))
 # BlueZ Includes
 BLUEZ_ROOT := $(LOCAL_PATH)/../../../../external/bluetooth/bluez/include/bluetooth
-endif #gingerbread
+else
+# BlueZ Includes
+BLUEZ_ROOT := $(LOCAL_PATH)/../../../../external/bluetooth/bluez/lib/bluetooth
+endif #froyo and older
+
+ifneq (, $(filter ECLAIR FROYO GINGERBREAD, $(BUILD_ID)))
+LOCAL_CFLAGS += -DDBUS_OLD_APIS
+endif # gingerbread and older
 
 # This is used by BT Coex Shim and BTC-ES
 ifeq ($(TARGET_BUILD_TYPE),debug)
@@ -23,7 +27,7 @@ endif
 
 # BTC make does this, ensure compatibility
 LOCAL_CFLAGS += \
-        -fno-short-enums 
+        -fno-short-enums
 
 LOCAL_C_INCLUDES += $(LOCAL_PATH)
 LOCAL_C_INCLUDES += $(LOCAL_PATH)/btc
@@ -31,19 +35,20 @@ LOCAL_C_INCLUDES += $(LOCAL_PATH)/btces
 LOCAL_C_INCLUDES += $(BLUEZ_ROOT)
 LOCAL_C_INCLUDES += $(call include-path-for, dbus)
 
-ifeq ($(BUILD_ID), GINGERBREAD)
-LOCAL_SHARED_LIBRARIES := \
-	libdbus     \
-	libbluetooth \
-	libcutils
-else
+ifneq (, $(filter ECLAIR FROYO, $(BUILD_ID)))
 LOCAL_STATIC_LIBRARIES := \
 	libbluez-common-static
 
 LOCAL_SHARED_LIBRARIES := \
         libdbus \
         libbluetooth
-endif #gingerbread
+
+else
+LOCAL_SHARED_LIBRARIES := \
+	libdbus     \
+	libbluetooth \
+	libcutils
+endif #froyo and older
 
 #Enabling warnings to be treated as errors.
 LOCAL_CFLAGS += -Werror -Wall -Wextra

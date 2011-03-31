@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2009-2010, Code Aurora Forum. All rights reserved.
+Copyright (c) 2009-2011, Code Aurora Forum. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are
@@ -50,6 +50,7 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
   when        who  what, where, why
   ----------  ---  -----------------------------------------------------------
+  2011-04-01   ag  Fixing Compilation Issue with new DBUS api's on Honeycomb
   2010-03-03   pj  Initial Open Source version
 
 =============================================================================*/
@@ -65,6 +66,10 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * -------------------------------------------------------------------------*/
 
 #define BTCES_INVALID_WLAN_CHANS  (0xC000)   /* WLAN Channel range: 1-14, bits 0-13 */
+
+#ifdef DBUS_OLD_APIS
+#define dbus_watch_get_unix_fd dbus_watch_get_fd
+#endif
 
 /*----------------------------------------------------------------------------
  * Type Declarations

@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2009-2010, Code Aurora Forum. All rights reserved.
+Copyright (c) 2009-2011, Code Aurora Forum. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are
@@ -53,6 +53,7 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
   when        who  what, where, why
   ----------  ---  -----------------------------------------------------------
+  2011-04-01   ag  Fixing Compilation Issue with new DBUS api's on Honeycomb
   2011-03-01   rr  Resolving compilation errors for stricter compilation rules.
   2010-02-28   rr  Added support for sending the one last event notification
                    to BTCES in the signal handler if it is missed in the
@@ -614,7 +615,7 @@ static dbus_bool_t btces_pfal_dbus_add_watch_callback
   }
 
   /* Get the fd to be used for the dbus select operations */
-  watch_info.new_fd = dbus_watch_get_fd(watch_ptr);
+  watch_info.new_fd = dbus_watch_get_unix_fd(watch_ptr);
 
   /* Populate the watch ptr for later use */
   watch_info.watch_ptr = watch_ptr;
@@ -707,7 +708,7 @@ static void btces_pfal_dbus_toggle_watch_callback
   /* Get the fd to be used for the dbus select operations; if feasible */
   if(TRUE == enabled)
   {
-    watch_info.new_fd = dbus_watch_get_fd(watch_ptr);
+    watch_info.new_fd = dbus_watch_get_unix_fd(watch_ptr);
   }
   else
   {

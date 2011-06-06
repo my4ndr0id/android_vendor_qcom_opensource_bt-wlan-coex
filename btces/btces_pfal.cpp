@@ -53,6 +53,9 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
   when        who  what, where, why
   ----------  ---  -----------------------------------------------------------
+  2011-06-06   ss  Resolve issues due to addition of bluetooth management
+                   interface in kernel 2.6.38 and delay in intializing the
+                   default adapter in BlueZ.
   2011-04-01   ag  Fixing Compilation Issue with new DBUS api's on Honeycomb
   2011-03-01   rr  Resolving compilation errors for stricter compilation rules.
   2010-02-28   rr  Added support for sending the one last event notification
@@ -143,6 +146,11 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /* Timeout for dbus queries (5 seconds - arbitrary choice) */
 #define BTCES_DBUS_TIMEOUT  5000
+
+//Maximum Time to wait for BT driver to initialize.
+#define BTCES_BT_SETTLE_TIME_SEC 2
+#define BTCES_BT_UP_SLEEP_TIME_USEC 100000
+
 
 /* Timeout for HCI lib operations (5 seconds - arbitrary choice) */
 #define BTCES_HCI_LIB_TIMEOUT 5000
@@ -861,6 +869,7 @@ static BTCES_STATUS btces_pfal_dbus_get_info
   DBusMessage                    *bus_req_ptr = NULL;
   DBusMessage                    *bus_rsp_ptr = NULL;
   char                           *bus_rsp_str_ptr;
+  unsigned int wait;
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
   /* No need to check conn_ptr (dbus will fail and we catch that directly) */
@@ -888,11 +897,40 @@ static BTCES_STATUS btces_pfal_dbus_get_info
 
   dbus_error_init(&bus_error);
 
-  /* Send the request and wait for finish */
-  bus_rsp_ptr = dbus_connection_send_with_reply_and_block(g_btces_pfal_data.worker_thread_info.conn_ptr,
-                                                          bus_req_ptr,
-                                                          BTCES_DBUS_TIMEOUT,
-                                                          &bus_error);
+  //Wait up to BTCES_BT_SETTLE_TIME_SEC seconds
+  wait = 0;
+  while(wait++ < (BTCES_BT_SETTLE_TIME_SEC* 1000000 / BTCES_BT_UP_SLEEP_TIME_USEC)) {
+
+    if(dbus_error_is_set(&bus_error)) {
+      /* Free the dbus_error if it's already set before sneding it to dbus module for setting the error */
+      dbus_error_free(&bus_error);
+    }
+
+    /* Send the request and wait for finish */
+    bus_rsp_ptr = dbus_connection_send_with_reply_and_block(g_btces_pfal_data.worker_thread_info.conn_ptr,
+                                                            bus_req_ptr,
+                                                            BTCES_DBUS_TIMEOUT,
+                                                            &bus_error);
+    if(bus_rsp_ptr != NULL) {
+      BTCES_MSG_MEDIUM("btces_pfal_dbus_get_info(): dbus_connection_send_with_reply_and_block Success %d"
+                       BTCES_EOL, wait);
+      break;
+    }
+
+    if(dbus_error_is_set(&bus_error)) {
+      /* Verify if BTCES_DBUS_TIMEOUT occurred by checking the bus_error and exit the loop on same,
+         it means 'org.bluez' is found and there is time out issue in getting the default adapter */
+      if(strcmp(bus_error.name, DBUS_ERROR_NO_REPLY) == 0) {
+        BTCES_MSG_MEDIUM("btces_pfal_dbus_get_info(): dbus_connection_send_with_reply_and_block: DBUS_ERROR_NO_REPLY" BTCES_EOL);
+        break;
+      }
+    }
+
+    BTCES_MSG_MEDIUM("btces_pfal_dbus_get_info(): Waiting: %d micro seconds(Max waiting time: %d Seconds)"
+                     BTCES_EOL, (wait*BTCES_BT_UP_SLEEP_TIME_USEC),BTCES_BT_SETTLE_TIME_SEC);
+    usleep(BTCES_BT_UP_SLEEP_TIME_USEC);
+  }
+
 
   /* Free the request (it cannot be NULL) */
   dbus_message_unref(bus_req_ptr);
@@ -1562,10 +1600,14 @@ static BTCES_STATUS btces_pfal_hci_open
     return BTCES_FAIL;
   }
 
+  memset(&hci_addr, 0, sizeof(hci_addr));
+
   /* The bind() needs to happen always before setsockopt() */
   hci_addr.hci_family = AF_BLUETOOTH;
   /* Device is the default retrieved from the adapter */
   hci_addr.hci_dev = (unsigned short)dev_id;
+  /* Initialize the hci_channel with HCI_CHANNEL_RAW */
+  hci_addr.hci_channel = HCI_CHANNEL_RAW;
 
   if(0 > bind(g_btces_pfal_data.worker_thread_info.hci_fd,
               (struct sockaddr *)&hci_addr,

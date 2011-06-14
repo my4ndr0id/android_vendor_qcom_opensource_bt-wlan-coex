@@ -50,6 +50,10 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
   when        who  what, where, why
   ----------  ---  -----------------------------------------------------------
+  2011-06-14   ss  To resolve issue BTC event not coming in SoftAP mode due to the
+                   change of the interfase name, Added a way to check is wlan driver
+                   already loaded by checking the module name 'wlan' rather than
+                   checking through the interface name(wlan0 or softAp.0).
   2011-03-08   rr  Ensure WLAN driver is successful loaded before sending out
                    "Query WLAN" message.
   2010-06-01  tam  Let WLAN driver close before checking for it again
@@ -168,6 +172,13 @@ typedef struct
 
 //Global handle to the BTC SVC
 tBtcSvcHandle *gpBtcSvc = NULL;
+
+#ifndef WIFI_DRIVER_MODULE_NAME
+#define WIFI_DRIVER_MODULE_NAME         "wlan"
+#endif
+static const char MODULE_FILE[]         = "/proc/modules";
+static const char DRIVER_MODULE_TAG[]   = WIFI_DRIVER_MODULE_NAME " ";
+static const char DRIVER_PROP_NAME[]    = "wlan.driver.status";
 
 /*---------------------------------------------------------------------------
  * Function prototypes
@@ -373,6 +384,40 @@ static eBtcStatus monitor_udev_event(tBtcSvcHandle *pBtcSvc)
    return BTC_FAILURE;
 }
 
+/* Check if WLAN driver is already loaded or not by checking the property status
+ * and DRIVER_MODULE_TAG in the MODULE_FILE file.
+ */
+static int check_driver_loaded() {
+    char driver_status[PROPERTY_VALUE_MAX];
+    FILE *proc;
+    char line[sizeof(DRIVER_MODULE_TAG)+1];
+
+    if (!property_get(DRIVER_PROP_NAME, driver_status, NULL)
+            || strcmp(driver_status, "ok") != 0) {
+        BTC_INFO("Wlan driver not loaded as per Android property");
+        return BTC_FAILURE;  /* driver not loaded */
+    }
+    /*
+     * If the property says the driver is loaded, check to
+     * make sure that the property setting isn't just left
+     * over from a previous manual shutdown or a runtime
+     * crash.
+     */
+    if ((proc = fopen(MODULE_FILE, "r")) == NULL) {
+        BTC_ERR("Could not open %s: %s", MODULE_FILE, strerror(errno));
+        return BTC_FAILURE;
+    }
+    while ((fgets(line, sizeof(line), proc)) != NULL) {
+        if (strncmp(line, DRIVER_MODULE_TAG, strlen(DRIVER_MODULE_TAG)) == 0) {
+            fclose(proc);
+            BTC_INFO("Wlan driver already loaded");
+            return BTC_SUCCESS;
+        }
+    }
+    fclose(proc);
+    BTC_INFO("Wlan driver not loaded");
+    return BTC_FAILURE;
+}
 
 /* Check if WLAN device is there or not. This call would basically
  * block this thread from proceeeding further until WLAN module is
@@ -380,13 +425,9 @@ static eBtcStatus monitor_udev_event(tBtcSvcHandle *pBtcSvc)
  */
 static eBtcStatus check_wlan_present(tBtcSvcHandle *pBtcSvcHandle) {
 
-   int absent = -1;
-   struct stat stat_buffer;
-
-   absent = stat("/sys/class/net/wlan0", &stat_buffer);
-
-   if( !absent )
-      return BTC_SUCCESS;
+   if (check_driver_loaded() == BTC_SUCCESS) {
+        return BTC_SUCCESS;
+   }
 
    if(monitor_udev_event(pBtcSvcHandle) == BTC_WLAN_IF_FOUND)
     {

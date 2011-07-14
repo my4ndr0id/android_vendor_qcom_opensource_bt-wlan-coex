@@ -1606,8 +1606,6 @@ static BTCES_STATUS btces_pfal_hci_open
   hci_addr.hci_family = AF_BLUETOOTH;
   /* Device is the default retrieved from the adapter */
   hci_addr.hci_dev = (unsigned short)dev_id;
-  /* Initialize the hci_channel with HCI_CHANNEL_RAW */
-  hci_addr.hci_channel = HCI_CHANNEL_RAW;
 
   if(0 > bind(g_btces_pfal_data.worker_thread_info.hci_fd,
               (struct sockaddr *)&hci_addr,

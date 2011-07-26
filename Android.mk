@@ -7,7 +7,7 @@ ifeq ($(BOARD_HAS_QCOM_WLAN), true)
 LOCAL_PATH:= $(call my-dir)
 include $(CLEAR_VARS)
 
-ifneq (, $(filter ERE27 FRG83G, $(BUILD_ID)))
+ifeq ($(strip $(call is-android-codename-in-list,ECLAIR FROYO)),true)
 # BlueZ Includes
 BLUEZ_ROOT := $(LOCAL_PATH)/../../../../external/bluetooth/bluez/include/bluetooth
 else
@@ -15,7 +15,7 @@ else
 BLUEZ_ROOT := $(LOCAL_PATH)/../../../../external/bluetooth/bluez/lib/bluetooth
 endif #froyo and older
 
-ifneq (, $(filter ERE27 FRG83G GINGERBREAD, $(BUILD_ID)))
+ifeq ($(strip $(call is-android-codename-in-list,ECLAIR FROYO GINGERBREAD)),true)
 LOCAL_CFLAGS += -DDBUS_OLD_APIS
 endif # gingerbread and older
 
@@ -35,7 +35,7 @@ LOCAL_C_INCLUDES += $(LOCAL_PATH)/btces
 LOCAL_C_INCLUDES += $(BLUEZ_ROOT)
 LOCAL_C_INCLUDES += $(call include-path-for, dbus)
 
-ifneq (, $(filter ERE27 FRG83G, $(BUILD_ID)))
+ifeq ($(strip $(call is-android-codename-in-list,ECLAIR FROYO)),true)
 LOCAL_STATIC_LIBRARIES := \
 	libbluez-common-static
 

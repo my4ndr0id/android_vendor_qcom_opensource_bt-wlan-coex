@@ -617,6 +617,15 @@ eBtcStatus process_message(int fd, tBtcSvcHandle *pBtcSvcHandle)
          case WLAN_MODULE_DOWN_IND:
             /* WLAN interface went down */
             BTC_INFO( "BTC-SVC: WLAN Interface went down!\n");
+             /* Make sure we are registered with BTC-ES */
+            if(register_btc(pBtcSvcHandle) == BTC_SUCCESS) {
+               /* Communicate the WLAN channel mask to BTC-ES (no channels) */
+               pBtcSvcHandle->btcEsFuncs.wlan_chan_func(0);
+            }
+            else
+            {
+               BTC_ERR("BTC-SVC: Could not pass disassoc info to BTC-ES\n");
+            }
             /* Deregister with BTC-ES */
             (void)unregister_btc(pBtcSvcHandle);
             return BTC_WLAN_IF_DOWN;

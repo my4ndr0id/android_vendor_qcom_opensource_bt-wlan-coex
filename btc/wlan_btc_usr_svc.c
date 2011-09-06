@@ -50,6 +50,9 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
   when        who  what, where, why
   ----------  ---  -----------------------------------------------------------
+  2011-08-06   ss  To resolve issue BTC event not coming after WLAN OFF and ON,
+                   Added a loop to wait till the wlan.driver.status property updates
+                   to corect value with 4 seconds time-out.
   2011-06-14   ss  To resolve issue BTC event not coming in SoftAP mode due to the
                    change of the interfase name, Added a way to check is wlan driver
                    already loaded by checking the module name 'wlan' rather than
@@ -89,6 +92,10 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //Time for WLAN driver to be unloaded after getting BTC_WLAN_IF_DOWN
 #define BTC_SVC_WLAN_DOWN_SLEEP_TIME_USEC (200000)
 #define BTC_SVC_WLAN_DOWN_WAIT_TIME_SEC (4)
+
+//Time for WLAN driver to be loaded after getting and setting android property correctly.
+#define BTC_SVC_WLAN_UP_SLEEP_TIME_USEC (200000)
+#define BTC_SVC_WLAN_UP_WAIT_TIME_SEC (4)
 
 #ifdef BTC_DEBUG
 
@@ -391,6 +398,24 @@ static int check_driver_loaded() {
     char driver_status[PROPERTY_VALUE_MAX];
     FILE *proc;
     char line[sizeof(DRIVER_MODULE_TAG)+1];
+    int wait;
+
+    /* To Check if property is not set at all */
+    if(!property_get(DRIVER_PROP_NAME, driver_status, NULL))
+    {
+        BTC_INFO("BTC-SVC: Wlan driver not loaded as the Android property is not set\n");
+        return BTC_FAILURE;
+    }
+
+    /* Wait up to 4 seconds to allow WLAN driver to load and set the property status */
+    wait = 0;
+    while((wait++ < (BTC_SVC_WLAN_UP_WAIT_TIME_SEC * 1000000 / BTC_SVC_WLAN_UP_SLEEP_TIME_USEC))
+          && (!property_get(DRIVER_PROP_NAME, driver_status, NULL)
+          || strcmp(driver_status, "loading") == 0)) {
+
+            BTC_INFO("BTC-SVC: WLAN driver is still loading: %d", wait);
+            usleep(BTC_SVC_WLAN_UP_SLEEP_TIME_USEC);
+    }
 
     if (!property_get(DRIVER_PROP_NAME, driver_status, NULL)
             || strcmp(driver_status, "ok") != 0) {

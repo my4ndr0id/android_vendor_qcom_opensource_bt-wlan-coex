@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2009-2011, Code Aurora Forum. All rights reserved.
+Copyright (c) 2009-2012, Code Aurora Forum. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are
@@ -185,8 +185,8 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 /* Macro to define size of the pipe file descriptor - should always be 2 */
 #define BTCES_PIPE_FD_SIZE 2
 
-/* Macro to define the max number of dbus signals of interest (currently 5) */
-#define BTCES_MAX_DBUS_SIGNALS 5
+/* Macro to define the max number of dbus signals of interest (currently 6) */
+#define BTCES_MAX_DBUS_SIGNALS 6
 
 /*----------------------------------------------------------------------------
  * Type Declarations
@@ -391,6 +391,7 @@ static BTCES_STATUS btces_pfal_update_ca_mode(boolean turn_off_ca);
 /* Native event handlers for the table */
 static void btces_pfal_dbus_adapter_added_sig_handler(DBusMessage *msg_ptr);
 static void btces_pfal_dbus_adapter_removed_sig_handler(DBusMessage *msg_ptr);
+static void btces_pfal_dbus_adapter_property_changed_sig_handler(DBusMessage *msg_ptr);
 static void btces_pfal_dbus_audio_sink_playing_sig_handler(DBusMessage *msg_ptr);
 static void btces_pfal_dbus_audio_sink_stopped_sig_handler(DBusMessage *msg_ptr);
 
@@ -417,6 +418,10 @@ static const btces_pfal_dbus_signal_struct g_btces_dbus_sig_table[BTCES_MAX_DBUS
   {"org.bluez.Manager",
     "AdapterRemoved",
     btces_pfal_dbus_adapter_removed_sig_handler,
+  },
+  {"org.bluez.Adapter",
+    "PropertyChanged",
+    btces_pfal_dbus_adapter_property_changed_sig_handler,
   },
   {"org.bluez.AudioSink",
     "Playing",
@@ -830,6 +835,23 @@ static BTCES_STATUS btces_pfal_dbus_enable_events
   }
 
   BTCES_MSG_MEDIUM("btces_pfal_dbus_enable_events(): Manager signals enabled" BTCES_EOL);
+
+  /* Enable the Adapter interface signals */
+  dbus_bus_add_match(g_btces_pfal_data.worker_thread_info.conn_ptr,
+                     "type='signal',interface='org.bluez.Adapter'",
+                     &bus_error);
+
+  dbus_connection_flush(g_btces_pfal_data.worker_thread_info.conn_ptr);
+
+  if( dbus_error_is_set(&bus_error) )
+  {
+    BTCES_MSG_ERROR("btces_pfal_dbus_enable_events(): could not enable Adapter signals!" BTCES_EOL);
+
+    dbus_error_free(&bus_error);
+    return BTCES_STATUS_INITIALIZATION_FAILED;
+  }
+
+  BTCES_MSG_MEDIUM("btces_pfal_dbus_enable_events(): Adapter signals enabled" BTCES_EOL);
 
   /* Add A2DP (sink) signals here */
   dbus_bus_add_match(g_btces_pfal_data.worker_thread_info.conn_ptr,
@@ -1361,8 +1383,6 @@ static void btces_pfal_dbus_adapter_removed_sig_handler
     return;
   }
 
-  (void) btces_pfal_hci_close();
-
   /* Remove the adapter info we currently have */
   memset(&g_btces_pfal_data.worker_thread_info.default_adapter[0],
          0,
@@ -1373,6 +1393,77 @@ static void btces_pfal_dbus_adapter_removed_sig_handler
                             NULL);
 
   BTCES_MSG_MEDIUM("btces_pfal_dbus_adapter_removed_sig_handler(): adapter remove success" BTCES_EOL);
+
+  (void) bt_coex_shim_close();
+}
+
+/*==============================================================
+FUNCTION:  btces_pfal_dbus_adapter_property_changed_sig_handler
+==============================================================*/
+static void btces_pfal_dbus_adapter_property_changed_sig_handler
+(
+  DBusMessage *msg_ptr
+)
+{
+  DBusMessageIter iter, sub_iter;
+  const char  *property;
+  int powered;
+  /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+
+  BTCES_MSG_MEDIUM("btces_pfal_dbus: Adapter PropertyChanged" BTCES_EOL);
+
+  if(NULL == msg_ptr)
+  {
+    BTCES_MSG_MEDIUM("btces_pfal_dbus_adapter_property_changed_sig_handler(): NULL msg!" BTCES_EOL);
+    return;
+  }
+
+  if(!dbus_message_iter_init(msg_ptr, &iter))
+  {
+    BTCES_MSG_MEDIUM("btces_pfal_dbus_adapter_property_changed_sig_handler(): message has no args" BTCES_EOL);
+  }
+
+  if(dbus_message_iter_get_arg_type(&iter) != DBUS_TYPE_STRING)
+  {
+    BTCES_MSG_MEDIUM("btces_pfal_dbus_adapter_property_changed_sig_handler(): unexpected signature in PropertyChanged signal" BTCES_EOL);
+    return;
+  }
+  dbus_message_iter_get_basic(&iter, &property);
+
+  /* Only process the Powered value change signals */
+  if(property == NULL || strcmp(property, "Powered"))
+  {
+    BTCES_MSG_MEDIUM("btces_pfal_dbus_adapter_property_changed_sig_handler(): event ignored" BTCES_EOL);
+    return;
+  }
+
+  if(!dbus_message_iter_next(&iter))
+  {
+    BTCES_MSG_MEDIUM("btces_pfal_dbus_adapter_property_changed_sig_handler(): unexpected signature in PropertyChanged signal" BTCES_EOL);
+    return;
+  }
+  dbus_message_iter_recurse(&iter, &sub_iter);
+  if(dbus_message_iter_get_arg_type(&sub_iter) != DBUS_TYPE_BOOLEAN)
+  {
+    BTCES_MSG_MEDIUM("btces_pfal_dbus_adapter_property_changed_sig_handler(): unexpected signature in PropertyChanged signal");
+    return;
+  }
+
+  dbus_message_iter_get_basic(&sub_iter, &powered);
+
+  BTCES_MSG_MEDIUM("btces_pfal_dbus_adapter_property_changed_sig_handler(): powered %d" BTCES_EOL, powered);
+
+  /* Notify the btces core about the native event */
+  btces_svc_native_event_in((powered?BTCES_NATIVE_EVENT_DEVICE_SWITCHED_ON:BTCES_NATIVE_EVENT_DEVICE_SWITCHED_OFF),NULL);
+
+  if(!powered)
+  {
+    /* Start shutting down the BTC module */
+    (void) bt_coex_shim_close();
+  }
+
+  BTCES_MSG_MEDIUM("btces_pfal_dbus_adapter_property_changed_sig_handler(): done processing" BTCES_EOL);
+
 }
 
 /*==============================================================
